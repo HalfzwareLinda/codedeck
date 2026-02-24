@@ -1,42 +1,18 @@
 import { create } from 'zustand';
-import { Session, OutputEntry, AppConfig, AgentMode } from '../types';
-
-// Tauri API imports - lazy loaded to allow running in browser for testing
-type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-type ListenFn = (event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>;
-
-let _invoke: InvokeFn | null = null;
-let _listen: ListenFn | null = null;
-let _tauriInitialized = false;
-
-async function initTauri(): Promise<void> {
-  if (_tauriInitialized) return;
-  _tauriInitialized = true;
-  try {
-    const tauriCore = await import('@tauri-apps/api/core');
-    _invoke = tauriCore.invoke as InvokeFn;
-    const tauriEvent = await import('@tauri-apps/api/event');
-    _listen = tauriEvent.listen as ListenFn;
-  } catch {
-    console.log('Running outside Tauri - using mock mode');
-  }
-}
+import { Session, OutputEntry, AppConfig, AgentMode, TokenUsage } from '../types';
+import { api, events, isTauri } from '../ipc/tauri';
 
 interface SessionStore {
   sessions: Session[];
   activeSessionId: string | null;
   outputs: Record<string, OutputEntry[]>;
-  config: AppConfig | null;
-  sidebarOpen: boolean;
-  settingsOpen: boolean;
-  newSessionOpen: boolean;
+  config: AppConfig;
+  tokenUsage: Record<string, TokenUsage>;
 
   setActiveSession: (id: string) => void;
-  setSidebarOpen: (open: boolean) => void;
-  setSettingsOpen: (open: boolean) => void;
-  setNewSessionOpen: (open: boolean) => void;
   addOutput: (sessionId: string, entry: OutputEntry) => void;
   updateSession: (session: Session) => void;
+  updateTokenUsage: (sessionId: string, usage: TokenUsage) => void;
 
   loadSessions: () => Promise<void>;
   loadConfig: () => Promise<void>;
@@ -45,8 +21,6 @@ interface SessionStore {
   sendMessage: (sessionId: string, text: string) => Promise<void>;
   respondPermission: (sessionId: string, requestId: string, allow: boolean) => Promise<void>;
   setMode: (sessionId: string, mode: AgentMode) => Promise<void>;
-  gitPush: (sessionId: string) => Promise<void>;
-  gitPull: (sessionId: string) => Promise<void>;
   updateConfig: (config: AppConfig) => Promise<void>;
   initEventListeners: () => Promise<void>;
 }
@@ -63,56 +37,120 @@ const defaultConfig: AppConfig = {
   model: 'claude-sonnet-4-20250514',
 };
 
+// --- Mock agent simulation ---
+function mockAgentResponse(sessionId: string, text: string, get: () => SessionStore) {
+  const add = (entry: OutputEntry) => get().addOutput(sessionId, entry);
+  const now = () => new Date().toISOString();
+
+  // Update session to running
+  const session = get().sessions.find(s => s.id === sessionId);
+  if (session) {
+    get().updateSession({ ...session, state: 'running' });
+  }
+
+  const steps: { delay: number; fn: () => void }[] = [
+    { delay: 300, fn: () => add({ entry_type: 'action', content: 'List: .', timestamp: now(), metadata: { tool_type: 'list_dir' } }) },
+    { delay: 600, fn: () => add({ entry_type: 'action', content: 'list_dir: 12 entries', timestamp: now(), metadata: { tool_type: 'list_dir' } }) },
+    { delay: 900, fn: () => add({ entry_type: 'message', content: `I see you asked: "${text}"\n\n`, timestamp: now(), metadata: { streaming: true } }) },
+    { delay: 1000, fn: () => add({ entry_type: 'message', content: 'Let me explore the workspace ', timestamp: now(), metadata: { streaming: true } }) },
+    { delay: 1100, fn: () => add({ entry_type: 'message', content: 'to understand what we have here.\n\n', timestamp: now(), metadata: { streaming: true } }) },
+    { delay: 1300, fn: () => add({ entry_type: 'action', content: 'Read: src/main.rs', timestamp: now(), metadata: { tool_type: 'file_read' } }) },
+    { delay: 1600, fn: () => add({ entry_type: 'action', content: 'file_read: 245 chars output', timestamp: now(), metadata: { tool_type: 'file_read' } }) },
+    { delay: 1900, fn: () => add({ entry_type: 'message', content: 'I found the main entry point. ', timestamp: now(), metadata: { streaming: true } }) },
+    { delay: 2100, fn: () => add({ entry_type: 'message', content: 'This is a mock response — connect your Anthropic API key in **Settings** to enable real agent interactions.\n\n', timestamp: now(), metadata: { streaming: true } }) },
+    { delay: 2300, fn: () => add({ entry_type: 'message', content: 'In mock mode, you can test the full UI: create sessions, switch between them, try PLAN mode permissions, and explore the layout.', timestamp: now(), metadata: { streaming: true } }) },
+    { delay: 2500, fn: () => add({ entry_type: 'system', content: '', timestamp: now(), metadata: { stream_end: true } }) },
+    { delay: 2600, fn: () => {
+      if (session) {
+        get().updateSession({ ...session, state: 'completed' });
+        get().updateTokenUsage(sessionId, { input_tokens: 1250, output_tokens: 340, total_cost_usd: 0.0089 });
+      }
+    }},
+  ];
+
+  // If in plan mode, insert a mock permission request
+  if (session?.mode === 'plan') {
+    steps.splice(3, 0, {
+      delay: 800,
+      fn: () => {
+        if (session) {
+          const perm = {
+            id: crypto.randomUUID(),
+            tool_type: 'bash_exec',
+            description: 'List project files',
+            command: 'ls -la src/',
+            timestamp: now(),
+          };
+          get().updateSession({
+            ...session,
+            state: 'waiting_permission',
+            pending_permissions: [perm],
+          });
+        }
+      },
+    });
+  }
+
+  steps.forEach(({ delay, fn }) => setTimeout(fn, delay));
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   outputs: {},
   config: defaultConfig,
-  sidebarOpen: true,
-  settingsOpen: false,
-  newSessionOpen: false,
+  tokenUsage: {},
 
   setActiveSession: (id) => set({ activeSessionId: id }),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
-  setNewSessionOpen: (open) => set({ newSessionOpen: open }),
 
-  addOutput: (sessionId, entry) => set((state) => ({
-    outputs: {
-      ...state.outputs,
-      [sessionId]: [...(state.outputs[sessionId] || []), entry],
-    },
-  })),
+  addOutput: (sessionId, entry) => set((state) => {
+    const existing = state.outputs[sessionId] || [];
+
+    // Streaming: append to last message entry
+    if (entry.metadata?.streaming && existing.length > 0) {
+      const last = existing[existing.length - 1];
+      if (last.entry_type === 'message') {
+        const updated = [...existing];
+        updated[updated.length - 1] = {
+          ...last,
+          content: last.content + entry.content,
+        };
+        return { outputs: { ...state.outputs, [sessionId]: updated } };
+      }
+    }
+
+    // Stream end marker — skip, don't create an entry
+    if (entry.metadata?.stream_end) {
+      return state;
+    }
+
+    // Normal entry — cap at 5000
+    const updated = existing.length >= 5000
+      ? [...existing.slice(-4999), entry]
+      : [...existing, entry];
+    return { outputs: { ...state.outputs, [sessionId]: updated } };
+  }),
 
   updateSession: (session) => set((state) => ({
     sessions: state.sessions.map((s) => s.id === session.id ? session : s),
   })),
 
+  updateTokenUsage: (sessionId, usage) => set((state) => ({
+    tokenUsage: { ...state.tokenUsage, [sessionId]: usage },
+  })),
+
   loadSessions: async () => {
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      const sessions = await _invoke('get_sessions') as Session[];
-      set({ sessions });
-    } catch (e) {
-      console.error('Failed to load sessions:', e);
-    }
+    const sessions = await api.getSessions();
+    if (sessions) set({ sessions });
   },
 
   loadConfig: async () => {
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      const config = await _invoke('get_config') as AppConfig;
-      set({ config });
-    } catch (e) {
-      console.error('Failed to load config:', e);
-    }
+    const config = await api.getConfig();
+    if (config) set({ config });
   },
 
   createSession: async (name, group, repoUrl, branch) => {
-    await initTauri();
-    if (!_invoke) {
+    if (!isTauri()) {
       const mockSession: Session = {
         id: crypto.randomUUID(),
         name,
@@ -121,41 +159,28 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         branch,
         workspace_path: `/workspace/${name}`,
         state: 'idle',
-        mode: 'plan',
+        mode: get().config.default_mode,
         created_at: new Date().toISOString(),
         last_activity: new Date().toISOString(),
         pending_permissions: [],
         git_sync_status: 'never_pushed',
+        token_usage: { input_tokens: 0, output_tokens: 0, total_cost_usd: 0 },
       };
       set((state) => ({ sessions: [...state.sessions, mockSession], activeSessionId: mockSession.id }));
       return;
     }
-    try {
-      const session = await _invoke('create_session', { name, group, repoUrl, branch }) as Session;
+    const session = await api.createSession(name, group, repoUrl, branch);
+    if (session) {
       set((state) => ({ sessions: [...state.sessions, session], activeSessionId: session.id }));
-    } catch (e) {
-      console.error('Failed to create session:', e);
     }
   },
 
   deleteSession: async (id) => {
-    await initTauri();
-    if (!_invoke) {
-      set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== id),
-        activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
-      }));
-      return;
-    }
-    try {
-      await _invoke('delete_session', { sessionId: id });
-      set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== id),
-        activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
-      }));
-    } catch (e) {
-      console.error('Failed to delete session:', e);
-    }
+    if (isTauri()) await api.deleteSession(id);
+    set((state) => ({
+      sessions: state.sessions.filter((s) => s.id !== id),
+      activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
+    }));
   },
 
   sendMessage: async (sessionId, text) => {
@@ -165,21 +190,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       timestamp: new Date().toISOString(),
     });
 
-    await initTauri();
-    if (!_invoke) {
-      setTimeout(() => {
-        get().addOutput(sessionId, {
-          entry_type: 'message',
-          content: 'I received your message. This is a mock response — connect the Anthropic API key in settings to enable real agent interactions.',
-          timestamp: new Date().toISOString(),
-        });
-      }, 500);
+    if (!isTauri()) {
+      mockAgentResponse(sessionId, text, get);
       return;
     }
     try {
-      await _invoke('send_message', { sessionId, text });
+      await api.sendMessage(sessionId, text);
     } catch (e) {
-      console.error('Failed to send message:', e);
       get().addOutput(sessionId, {
         entry_type: 'error',
         content: `Error: ${e}`,
@@ -189,75 +206,66 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   respondPermission: async (sessionId, requestId, allow) => {
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      await _invoke('respond_permission', { sessionId, requestId, allow });
-    } catch (e) {
-      console.error('Failed to respond to permission:', e);
+    if (!isTauri()) {
+      // Mock: remove permission and resume
+      const session = get().sessions.find(s => s.id === sessionId);
+      if (session) {
+        get().updateSession({
+          ...session,
+          state: 'running',
+          pending_permissions: session.pending_permissions.filter(p => p.id !== requestId),
+        });
+        if (allow) {
+          get().addOutput(sessionId, {
+            entry_type: 'action',
+            content: 'bash_exec: `ls -la src/`',
+            timestamp: new Date().toISOString(),
+            metadata: { tool_type: 'bash_exec' },
+          });
+        } else {
+          get().addOutput(sessionId, {
+            entry_type: 'system',
+            content: 'Denied: bash_exec',
+            timestamp: new Date().toISOString(),
+          });
+        }
+        // Continue mock flow
+        setTimeout(() => {
+          get().updateSession({ ...session, state: 'completed', pending_permissions: [] });
+        }, 500);
+      }
+      return;
     }
+    await api.respondPermission(sessionId, requestId, allow);
   },
 
   setMode: async (sessionId, mode) => {
     set((state) => ({
       sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, mode } : s),
     }));
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      await _invoke('set_mode', { sessionId, mode });
-    } catch (e) {
-      console.error('Failed to set mode:', e);
-    }
-  },
-
-  gitPush: async (sessionId) => {
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      await _invoke('git_push', { sessionId });
-    } catch (e) {
-      console.error('Failed to push:', e);
-    }
-  },
-
-  gitPull: async (sessionId) => {
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      await _invoke('git_pull', { sessionId });
-    } catch (e) {
-      console.error('Failed to pull:', e);
-    }
+    if (isTauri()) await api.setMode(sessionId, mode);
   },
 
   updateConfig: async (config) => {
     set({ config });
-    await initTauri();
-    if (!_invoke) return;
-    try {
-      await _invoke('update_config', { config });
-    } catch (e) {
-      console.error('Failed to update config:', e);
-    }
+    if (isTauri()) await api.updateConfig(config);
   },
 
   initEventListeners: async () => {
-    await initTauri();
-    if (!_listen) return;
-
-    await _listen('session-output', (event) => {
-      const payload = event.payload as { session_id: string; entry: OutputEntry };
-      get().addOutput(payload.session_id, payload.entry);
+    await events.onSessionOutput((data) => {
+      const { session_id, entry } = data as { session_id: string; entry: OutputEntry };
+      get().addOutput(session_id, entry);
     });
-
-    await _listen('session-state', (event) => {
-      const payload = event.payload as { session_id: string; state: string; session: Session };
-      get().updateSession(payload.session);
+    await events.onSessionState((data) => {
+      const { session } = data as { session_id: string; session: Session };
+      get().updateSession(session);
     });
-
-    await _listen('permission-request', () => {
+    await events.onPermissionRequest(() => {
       get().loadSessions();
+    });
+    await events.onTokenUsage((data) => {
+      const { session_id, usage } = data as { session_id: string; usage: TokenUsage };
+      get().updateTokenUsage(session_id, usage);
     });
   },
 }));

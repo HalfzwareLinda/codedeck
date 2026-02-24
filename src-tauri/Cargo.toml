@@ -27,3 +27,6 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
 anyhow = "1"
 walkdir = "2"
+regex = "1"
+futures-util = "0.3"
+tokio-stream = "0.1"

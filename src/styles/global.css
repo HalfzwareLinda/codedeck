@@ -86,3 +86,8 @@ input, textarea, button {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+
+/* Utility classes */
+.mono { font-family: var(--font-mono); }
+.sans { font-family: var(--font-sans); }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

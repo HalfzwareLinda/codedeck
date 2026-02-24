@@ -47,47 +47,30 @@ async fn send_message(
     app: tauri::AppHandle,
     manager: tauri::State<'_, SharedSessionManager>,
 ) -> Result<(), String> {
-    let api_key = {
+    // Collect what we need from the manager in one lock
+    let (api_key, model, workspace_path, mode) = {
         let mgr = manager.lock().await;
-        mgr.config.anthropic_api_key.clone()
-    };
-
-    let api_key = match api_key {
-        Some(key) if !key.is_empty() => key,
-        _ => {
-            let entry = session::OutputEntry {
-                entry_type: session::OutputType::Error,
-                content: "No Anthropic API key configured. Go to Settings to add one.".into(),
-                timestamp: chrono::Utc::now(),
-                metadata: None,
-            };
-            let _ = app.emit("session-output", serde_json::json!({
-                "session_id": session_id,
-                "entry": entry,
-            }));
-            return Ok(());
-        }
-    };
-
-    let model = {
-        let mgr = manager.lock().await;
-        mgr.config.model.clone()
-    };
-
-    let workspace_path = {
-        let mgr = manager.lock().await;
-        mgr.sessions.iter()
+        let api_key = match &mgr.config.anthropic_api_key {
+            Some(key) if !key.is_empty() => key.clone(),
+            _ => {
+                let entry = session::OutputEntry {
+                    entry_type: session::OutputType::Error,
+                    content: "No Anthropic API key configured. Go to Settings to add one.".into(),
+                    timestamp: chrono::Utc::now(),
+                    metadata: None,
+                };
+                let _ = app.emit("session-output", serde_json::json!({
+                    "session_id": session_id,
+                    "entry": entry,
+                }));
+                return Ok(());
+            }
+        };
+        let model = mgr.config.model.clone();
+        let session = mgr.sessions.iter()
             .find(|s| s.id == session_id)
-            .map(|s| s.workspace_path.clone())
-            .unwrap_or_default()
-    };
-
-    let mode = {
-        let mgr = manager.lock().await;
-        mgr.sessions.iter()
-            .find(|s| s.id == session_id)
-            .map(|s| s.mode.clone())
-            .unwrap_or(AgentMode::Plan)
+            .ok_or_else(|| "Session not found".to_string())?;
+        (api_key, model, session.workspace_path.clone(), session.mode.clone())
     };
 
     // Update state to running
@@ -95,6 +78,7 @@ async fn send_message(
         let mut mgr = manager.lock().await;
         if let Some(s) = mgr.sessions.iter_mut().find(|s| s.id == session_id) {
             s.state = SessionState::Running;
+            s.last_activity = chrono::Utc::now();
             let session_clone = s.clone();
             let _ = app.emit("session-state", serde_json::json!({
                 "session_id": session_id,
@@ -106,7 +90,7 @@ async fn send_message(
 
     let app_clone = app.clone();
     let session_id_clone = session_id.clone();
-    let manager_inner = manager.inner().clone();
+    let manager_arc = manager.inner().clone();
 
     tokio::spawn(async move {
         let result = agent::run_agent(
@@ -117,14 +101,16 @@ async fn send_message(
             &workspace_path,
             &mode,
             &app_clone,
+            manager_arc.clone(),
         ).await;
 
-        let mut mgr = manager_inner.lock().await;
+        let mut mgr = manager_arc.lock().await;
         if let Some(s) = mgr.sessions.iter_mut().find(|s| s.id == session_id_clone) {
             match result {
                 Ok(()) => s.state = SessionState::Completed,
                 Err(e) => s.state = SessionState::Error(e.to_string()),
             }
+            s.last_activity = chrono::Utc::now();
             let session_clone = s.clone();
             let _ = app_clone.emit("session-state", serde_json::json!({
                 "session_id": session_id_clone,
@@ -146,8 +132,15 @@ async fn respond_permission(
     manager: tauri::State<'_, SharedSessionManager>,
 ) -> Result<(), String> {
     let mut mgr = manager.lock().await;
-    mgr.respond_permission(&session_id, &request_id, allow)
-        .map_err(|e| e.to_string())
+    // Send the response through the oneshot channel
+    if let Some(tx) = mgr.permission_senders.remove(&request_id) {
+        let _ = tx.send(allow);
+    }
+    // Also clean up the permission from the session's pending list
+    if let Some(session) = mgr.sessions.iter_mut().find(|s| s.id == session_id) {
+        session.pending_permissions.retain(|p| p.id != request_id);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -165,13 +158,11 @@ async fn set_mode(
 
 #[tauri::command]
 async fn git_push(session_id: String) -> Result<String, String> {
-    // Stub - will be implemented with GitHub API
     Ok(format!("Push not yet implemented for session {}", session_id))
 }
 
 #[tauri::command]
 async fn git_pull(session_id: String) -> Result<String, String> {
-    // Stub
     Ok(format!("Pull not yet implemented for session {}", session_id))
 }
 

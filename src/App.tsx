@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useUIStore } from './stores/uiStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import Sidebar from './components/Sidebar';
@@ -9,10 +10,10 @@ import './styles/global.css';
 
 export default function App() {
   const isWide = useMediaQuery('(min-width: 700px)');
-  const sidebarOpen = useSessionStore((s) => s.sidebarOpen);
-  const settingsOpen = useSessionStore((s) => s.settingsOpen);
-  const newSessionOpen = useSessionStore((s) => s.newSessionOpen);
-  const setSidebarOpen = useSessionStore((s) => s.setSidebarOpen);
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const newSessionOpen = useUIStore((s) => s.newSessionOpen);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const initEventListeners = useSessionStore((s) => s.initEventListeners);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const loadConfig = useSessionStore((s) => s.loadConfig);

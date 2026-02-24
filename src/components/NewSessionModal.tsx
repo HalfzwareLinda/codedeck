@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
+import '../styles/modal.css';
 
 export default function NewSessionModal() {
-  const setNewSessionOpen = useSessionStore((s) => s.setNewSessionOpen);
+  const setNewSessionOpen = useUIStore((s) => s.setNewSessionOpen);
   const createSession = useSessionStore((s) => s.createSession);
   const sessions = useSessionStore((s) => s.sessions);
   const [name, setName] = useState('');
@@ -22,113 +24,58 @@ export default function NewSessionModal() {
     setNewSessionOpen(false);
   };
 
-  const inputStyle = {
-    width: '100%',
-    height: 48,
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-medium)',
-    borderRadius: 4,
-    padding: '0 12px',
-    fontSize: 14,
-    color: 'var(--text-primary)',
-  };
-
-  const labelStyle = {
-    fontSize: 12,
-    fontWeight: 700 as const,
-    color: 'var(--text-secondary)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.05em',
-    marginBottom: 4,
-    display: 'block',
-  };
-
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      alignItems: 'flex-end',
-      justifyContent: 'center',
-      background: 'rgba(0,0,0,0.7)',
-      zIndex: 200,
-    }} onClick={() => setNewSessionOpen(false)}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: 500,
-          background: 'var(--bg-surface)',
-          borderRadius: '12px 12px 0 0',
-          padding: 24,
-        }}
-      >
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}>
-          <span style={{ fontSize: 18, fontWeight: 700 }}>New Session</span>
-          <button
-            onClick={() => setNewSessionOpen(false)}
-            style={{ fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            ×
+    <div className="modal-overlay bottom-sheet" onClick={() => setNewSessionOpen(false)}>
+      <div className="modal-content bottom-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">New Session</span>
+          <button className="modal-close" onClick={() => setNewSessionOpen(false)}>
+            &times;
           </button>
         </div>
 
-        <label style={labelStyle}>Name</label>
+        <label className="modal-label">Name</label>
         <input
+          className="modal-input"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Session name"
           autoFocus
-          style={{ ...inputStyle, marginBottom: 16 }}
         />
 
-        <label style={labelStyle}>Group</label>
+        <label className="modal-label">Group</label>
         <input
+          className="modal-input"
           value={group}
           onChange={(e) => setGroup(e.target.value)}
           placeholder="e.g., WORK, PERSONAL"
           list="groups"
-          style={{ ...inputStyle, marginBottom: 16 }}
         />
         <datalist id="groups">
           {existingGroups.map((g) => <option key={g} value={g} />)}
         </datalist>
 
-        <label style={labelStyle}>Repository</label>
+        <label className="modal-label">Repository</label>
         <input
+          className="modal-input"
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
           placeholder="https://github.com/user/repo"
-          style={{ ...inputStyle, marginBottom: 16 }}
         />
 
-        <label style={labelStyle}>Branch</label>
+        <label className="modal-label">Branch</label>
         <input
+          className="modal-input"
           value={branch}
           onChange={(e) => setBranch(e.target.value)}
           placeholder="main"
-          style={{ ...inputStyle, marginBottom: 24 }}
+          style={{ marginBottom: 24 }}
         />
 
         <button
+          className="modal-primary-btn"
           onClick={handleCreate}
           disabled={!name.trim() || loading}
-          style={{
-            width: '100%',
-            height: 56,
-            background: name.trim() ? 'var(--text-primary)' : 'var(--border-medium)',
-            color: name.trim() ? 'var(--bg-black)' : 'var(--text-muted)',
-            fontSize: 16,
-            fontWeight: 700,
-            borderRadius: 4,
-            cursor: name.trim() ? 'pointer' : 'default',
-            transition: 'background 0.2s',
-          }}
         >
           {loading ? 'Cloning...' : 'Clone & Start'}
         </button>

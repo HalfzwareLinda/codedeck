@@ -16,6 +16,13 @@ export interface Session {
   last_activity: string;
   pending_permissions: PermissionRequest[];
   git_sync_status: GitSyncStatus;
+  token_usage: TokenUsage;
+}
+
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_cost_usd: number;
 }
 
 export interface PermissionRequest {

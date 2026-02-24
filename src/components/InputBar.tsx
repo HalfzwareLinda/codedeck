@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Session, AgentMode } from '../types';
 import { useSessionStore } from '../stores/sessionStore';
+import '../styles/input.css';
 
 export default function InputBar({ session }: { session: Session }) {
   const [text, setText] = useState('');
@@ -33,19 +34,8 @@ export default function InputBar({ session }: { session: Session }) {
     const isActive = session.mode === mode;
     return (
       <button
+        className={`mode-btn ${isActive ? 'active' : 'inactive'}`}
         onClick={() => setMode(session.id, mode)}
-        style={{
-          padding: '4px 12px',
-          fontSize: 12,
-          fontWeight: 700,
-          borderRadius: 4,
-          cursor: 'pointer',
-          background: isActive ? 'var(--text-primary)' : 'var(--bg-card)',
-          color: isActive ? 'var(--bg-black)' : 'var(--text-muted)',
-          border: isActive ? 'none' : '1px solid var(--border-medium)',
-          height: 32,
-          minWidth: 60,
-        }}
       >
         {label}
       </button>
@@ -53,58 +43,24 @@ export default function InputBar({ session }: { session: Session }) {
   };
 
   return (
-    <div style={{
-      borderTop: '1px solid var(--border-medium)',
-      padding: '8px 16px',
-      display: 'flex',
-      gap: 8,
-      alignItems: 'flex-end',
-      flexShrink: 0,
-    }}>
+    <div className="input-bar">
       <textarea
         ref={textareaRef}
+        className="input-textarea"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Ask anything..."
         rows={1}
-        style={{
-          flex: 1,
-          minHeight: 48,
-          maxHeight: 144,
-          resize: 'none',
-          background: 'var(--bg-input)',
-          border: '1px solid var(--border-medium)',
-          borderRadius: 8,
-          padding: '12px',
-          fontSize: 14,
-          color: 'var(--text-primary)',
-          lineHeight: 1.4,
-        }}
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 2 }}>
+      <div className="input-controls">
+        <div className="mode-toggle">
           {modeButton('plan', 'PLAN')}
           {modeButton('auto', 'AUTO')}
         </div>
         {text.trim() && (
-          <button
-            onClick={handleSend}
-            style={{
-              height: 48,
-              padding: '0 16px',
-              background: 'var(--bg-surface)',
-              color: 'var(--text-primary)',
-              fontSize: 13,
-              fontWeight: 700,
-              borderRadius: 4,
-              cursor: 'pointer',
-              border: '1px solid var(--border-medium)',
-            }}
-          >
-            Ask
-          </button>
+          <button className="send-btn" onClick={handleSend}>Ask</button>
         )}
       </div>
     </div>

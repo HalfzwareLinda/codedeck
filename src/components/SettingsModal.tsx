@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { AppConfig, AgentMode } from '../types';
+import '../styles/modal.css';
 
 export default function SettingsModal() {
   const config = useSessionStore((s) => s.config);
   const updateConfig = useSessionStore((s) => s.updateConfig);
-  const setSettingsOpen = useSessionStore((s) => s.setSettingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
 
   const [local, setLocal] = useState<AppConfig>(config || {
     anthropic_api_key: null,
@@ -30,204 +32,106 @@ export default function SettingsModal() {
     setSettingsOpen(false);
   };
 
-  const inputStyle = {
-    width: '100%',
-    height: 48,
-    background: 'var(--bg-input)',
-    border: '1px solid var(--border-medium)',
-    borderRadius: 4,
-    padding: '0 12px',
-    fontSize: 14,
-    color: 'var(--text-primary)',
-  };
-
-  const labelStyle = {
-    fontSize: 12,
-    fontWeight: 700 as const,
-    color: 'var(--text-secondary)',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.05em',
-    marginBottom: 4,
-    display: 'block',
-  };
-
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'rgba(0,0,0,0.8)',
-      zIndex: 200,
-    }} onClick={() => setSettingsOpen(false)}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 500,
-          maxWidth: '95vw',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          background: 'var(--bg-surface)',
-          borderRadius: 8,
-          padding: 24,
-        }}
-      >
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}>
-          <span style={{ fontSize: 18, fontWeight: 700 }}>Settings</span>
-          <button
-            onClick={() => setSettingsOpen(false)}
-            style={{ fontSize: 20, cursor: 'pointer', color: 'var(--text-secondary)', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            ×
+    <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Settings</span>
+          <button className="modal-close" onClick={() => setSettingsOpen(false)}>
+            &times;
           </button>
         </div>
 
         {/* Authentication */}
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: 'var(--text-primary)' }}>Authentication</h3>
+        <div className="modal-section">
+          <h3 className="modal-section-title">Authentication</h3>
 
-          <label style={labelStyle}>Anthropic API Key</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <label className="modal-label">Anthropic API Key</label>
+          <div className="input-with-toggle" style={{ marginBottom: 16 }}>
             <input
+              className="modal-input"
               type={showApiKey ? 'text' : 'password'}
               value={local.anthropic_api_key || ''}
               onChange={(e) => setLocal({ ...local, anthropic_api_key: e.target.value || null })}
               placeholder="sk-ant-..."
-              style={{ ...inputStyle, flex: 1 }}
             />
-            <button
-              onClick={() => setShowApiKey(!showApiKey)}
-              style={{ height: 48, padding: '0 12px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}
-            >
+            <button className="show-hide-btn" onClick={() => setShowApiKey(!showApiKey)}>
               {showApiKey ? 'Hide' : 'Show'}
             </button>
           </div>
 
-          <label style={labelStyle}>GitHub Personal Access Token</label>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <label className="modal-label">GitHub Personal Access Token</label>
+          <div className="input-with-toggle" style={{ marginBottom: 16 }}>
             <input
+              className="modal-input"
               type={showPat ? 'text' : 'password'}
               value={local.github_pat || ''}
               onChange={(e) => setLocal({ ...local, github_pat: e.target.value || null })}
               placeholder="ghp_..."
-              style={{ ...inputStyle, flex: 1 }}
             />
-            <button
-              onClick={() => setShowPat(!showPat)}
-              style={{ height: 48, padding: '0 12px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13 }}
-            >
+            <button className="show-hide-btn" onClick={() => setShowPat(!showPat)}>
               {showPat ? 'Hide' : 'Show'}
             </button>
           </div>
 
-          <label style={labelStyle}>GitHub Username</label>
+          <label className="modal-label">GitHub Username</label>
           <input
+            className="modal-input"
             value={local.github_username || ''}
             onChange={(e) => setLocal({ ...local, github_username: e.target.value || null })}
             placeholder="username"
-            style={{ ...inputStyle, marginBottom: 16 }}
           />
         </div>
 
         {/* Preferences */}
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: 'var(--text-primary)' }}>Preferences</h3>
+        <div className="modal-section">
+          <h3 className="modal-section-title">Preferences</h3>
 
-          <label style={labelStyle}>Default Mode</label>
+          <label className="modal-label">Default Mode</label>
           <select
+            className="modal-input"
             value={local.default_mode}
             onChange={(e) => setLocal({ ...local, default_mode: e.target.value as AgentMode })}
-            style={{ ...inputStyle, marginBottom: 16, cursor: 'pointer' }}
+            style={{ cursor: 'pointer' }}
           >
             <option value="plan">Plan</option>
             <option value="auto">Auto</option>
           </select>
 
-          <label style={labelStyle}>Model</label>
+          <label className="modal-label">Model</label>
           <select
+            className="modal-input"
             value={local.model}
             onChange={(e) => setLocal({ ...local, model: e.target.value })}
-            style={{ ...inputStyle, marginBottom: 16, cursor: 'pointer' }}
+            style={{ cursor: 'pointer' }}
           >
             <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
             <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
             <option value="claude-opus-4-6">Claude Opus 4.6</option>
           </select>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div className="modal-toggle-row">
             <span style={{ fontSize: 14 }}>Auto-push on complete</span>
             <button
+              className={`toggle-switch ${local.auto_push_on_complete ? 'on' : 'off'}`}
               onClick={() => setLocal({ ...local, auto_push_on_complete: !local.auto_push_on_complete })}
-              style={{
-                width: 48,
-                height: 28,
-                borderRadius: 14,
-                background: local.auto_push_on_complete ? 'var(--text-primary)' : 'var(--border-medium)',
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'background 0.2s',
-              }}
             >
-              <div style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                background: local.auto_push_on_complete ? 'var(--bg-black)' : 'var(--text-secondary)',
-                position: 'absolute',
-                top: 3,
-                left: local.auto_push_on_complete ? 23 : 3,
-                transition: 'left 0.2s',
-              }} />
+              <div className="toggle-knob" />
             </button>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div className="modal-toggle-row">
             <span style={{ fontSize: 14 }}>Notifications</span>
             <button
+              className={`toggle-switch ${local.notifications_enabled ? 'on' : 'off'}`}
               onClick={() => setLocal({ ...local, notifications_enabled: !local.notifications_enabled })}
-              style={{
-                width: 48,
-                height: 28,
-                borderRadius: 14,
-                background: local.notifications_enabled ? 'var(--text-primary)' : 'var(--border-medium)',
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'background 0.2s',
-              }}
             >
-              <div style={{
-                width: 22,
-                height: 22,
-                borderRadius: '50%',
-                background: local.notifications_enabled ? 'var(--bg-black)' : 'var(--text-secondary)',
-                position: 'absolute',
-                top: 3,
-                left: local.notifications_enabled ? 23 : 3,
-                transition: 'left 0.2s',
-              }} />
+              <div className="toggle-knob" />
             </button>
           </div>
         </div>
 
-        <button
-          onClick={handleSave}
-          style={{
-            width: '100%',
-            height: 56,
-            background: 'var(--text-primary)',
-            color: 'var(--bg-black)',
-            fontSize: 16,
-            fontWeight: 700,
-            borderRadius: 4,
-            cursor: 'pointer',
-          }}
-        >
+        <button className="modal-primary-btn" onClick={handleSave}>
           Save
         </button>
       </div>
