@@ -1,0 +1,45 @@
+import { useSessionStore } from '../stores/sessionStore';
+import SessionHeader from './SessionHeader';
+import OutputStream from './OutputStream';
+import PermissionBar from './PermissionBar';
+import InputBar from './InputBar';
+
+export default function MainPanel({ isWide }: { isWide: boolean }) {
+  const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  const sessions = useSessionStore((s) => s.sessions);
+  const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  return (
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      minWidth: 0,
+      background: 'var(--bg-black)',
+    }}>
+      <SessionHeader session={activeSession} isWide={isWide} />
+
+      {activeSession ? (
+        <>
+          <OutputStream sessionId={activeSession.id} />
+          {activeSession.state === 'waiting_permission' && activeSession.pending_permissions.length > 0 && (
+            <PermissionBar session={activeSession} />
+          )}
+          <InputBar session={activeSession} />
+        </>
+      ) : (
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--text-muted)',
+          fontSize: 15,
+        }}>
+          Select or create a session to get started
+        </div>
+      )}
+    </div>
+  );
+}

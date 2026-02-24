@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+dist/
+
+# Rust build
+src-tauri/target/
+
+# Generated Android project (rebuild with `cargo tauri android init`)
+src-tauri/gen/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets (generated at runtime)
+src-tauri/gen/android/app/build/
+
+# Signing keys
+*.jks
+*.keystore
