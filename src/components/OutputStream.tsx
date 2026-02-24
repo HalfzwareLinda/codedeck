@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, CSSProperties, ReactElement } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import { List, useDynamicRowHeight, ListImperativeAPI } from 'react-window';
 import { useSessionStore } from '../stores/sessionStore';
 import { OutputEntry } from '../types';
 import '../styles/output.css';
+
+const EMPTY_OUTPUTS: OutputEntry[] = [];
 
 function ActionEntry({ entry }: { entry: OutputEntry }) {
   return (
@@ -50,100 +51,62 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
   return <div className="output-system">{entry.content}</div>;
 }
 
-// Row props that we pass via rowProps (excludes ariaAttributes, index, style which List injects)
-interface OutputRowProps {
-  outputs: OutputEntry[];
-  dynamicRowHeight: ReturnType<typeof useDynamicRowHeight>;
-}
-
-// react-window v2 rowComponent receives ariaAttributes, index, style (injected) + our OutputRowProps
-function RowComponent(props: {
-  ariaAttributes: { 'aria-posinset': number; 'aria-setsize': number; role: 'listitem' };
-  index: number;
-  style: CSSProperties;
-} & OutputRowProps): ReactElement | null {
-  const { index, style, outputs, dynamicRowHeight } = props;
-  const entry = outputs[index];
-  if (!entry) return null;
-
-  let content: ReactElement | null;
+function OutputItem({ entry }: { entry: OutputEntry }) {
   switch (entry.entry_type) {
-    case 'action': content = <ActionEntry entry={entry} />; break;
-    case 'diff': content = <DiffEntry entry={entry} />; break;
-    case 'message': content = <MessageEntry entry={entry} />; break;
-    case 'error': content = <ErrorEntry entry={entry} />; break;
-    case 'system': content = <SystemEntry entry={entry} />; break;
+    case 'action': return <ActionEntry entry={entry} />;
+    case 'diff': return <DiffEntry entry={entry} />;
+    case 'message': return <MessageEntry entry={entry} />;
+    case 'error': return <ErrorEntry entry={entry} />;
+    case 'system': return <SystemEntry entry={entry} />;
+    default: return null;
   }
-
-  return (
-    <div style={style}>
-      <div
-        ref={(el) => {
-          if (el) {
-            dynamicRowHeight.setRowHeight(index, el.getBoundingClientRect().height);
-          }
-        }}
-      >
-        {content}
-      </div>
-    </div>
-  );
 }
 
 export default function OutputStream({ sessionId }: { sessionId: string }) {
-  const outputs = useSessionStore((s) => s.outputs[sessionId] || []);
-  const listRef = useRef<ListImperativeAPI>(null);
-  const dynamicRowHeight = useDynamicRowHeight({ defaultRowHeight: 28, key: sessionId });
+  const outputs = useSessionStore((s) => s.outputs[sessionId] ?? EMPTY_OUTPUTS);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [showPill, setShowPill] = useState(false);
 
-  // Auto-scroll to bottom when new entries arrive
   useEffect(() => {
-    if (autoScroll && outputs.length > 0 && listRef.current) {
-      try {
-        listRef.current.scrollToRow({ index: outputs.length - 1, align: 'end' });
-      } catch {
-        // Ignore range errors during initial render
-      }
+    if (autoScroll && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    } else if (!autoScroll && outputs.length > 0) {
+      setShowPill(true);
     }
-  }, [outputs.length, autoScroll]);
+  }, [outputs, autoScroll]);
 
-  // Track scroll to detect user scrolling away from bottom
   const handleScroll = () => {
-    const el = listRef.current?.element;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    if (!containerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
     setAutoScroll(atBottom);
+    if (atBottom) setShowPill(false);
   };
 
-  if (outputs.length === 0) {
-    return (
-      <div className="output-container">
-        <div className="output-empty">Send a message to start the agent</div>
-      </div>
-    );
-  }
+  const scrollToBottom = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      setAutoScroll(true);
+      setShowPill(false);
+    }
+  };
 
   return (
-    <div className="output-container" onScroll={handleScroll}>
-      <List<OutputRowProps>
-        listRef={listRef}
-        rowCount={outputs.length}
-        rowHeight={dynamicRowHeight}
-        rowComponent={RowComponent}
-        rowProps={{ outputs, dynamicRowHeight }}
-        overscanCount={10}
-        style={{ height: '100%', padding: '8px 16px' }}
-      />
-      {!autoScroll && (
-        <button
-          className="output-new-pill"
-          onClick={() => {
-            setAutoScroll(true);
-            if (listRef.current) {
-              listRef.current.scrollToRow({ index: outputs.length - 1, align: 'end' });
-            }
-          }}
-        >
+    <div className="output-container">
+      <div
+        ref={containerRef}
+        className="output-scroll"
+        onScroll={handleScroll}
+      >
+        {outputs.length === 0 ? (
+          <div className="output-empty">Send a message to start the agent</div>
+        ) : (
+          outputs.map((entry, i) => <OutputItem key={i} entry={entry} />)
+        )}
+      </div>
+      {showPill && (
+        <button className="output-new-pill" onClick={scrollToBottom}>
           New output
         </button>
       )}

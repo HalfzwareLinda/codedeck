@@ -10,18 +10,26 @@ let _initialized = false;
 async function init(): Promise<void> {
   if (_initialized) return;
   _initialized = true;
+
+  // Check if we're actually inside a Tauri webview, not just whether the npm package exists
+  if (!('__TAURI_INTERNALS__' in window)) {
+    console.log('Running outside Tauri — mock mode enabled');
+    return;
+  }
+
   try {
     const core = await import('@tauri-apps/api/core');
     _invoke = core.invoke as InvokeFn;
     const event = await import('@tauri-apps/api/event');
     _listen = event.listen as ListenFn;
   } catch {
-    console.log('Running outside Tauri — mock mode enabled');
+    console.log('Tauri API import failed — mock mode enabled');
   }
 }
 
 export function isTauri(): boolean {
-  return _invoke !== null;
+  // Synchronous check — works before init() has been called
+  return '__TAURI_INTERNALS__' in window;
 }
 
 export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
