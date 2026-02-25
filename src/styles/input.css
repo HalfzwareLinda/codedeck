@@ -9,7 +9,8 @@
 
 .input-textarea {
   flex: 1;
-  min-height: 48px;
+  box-sizing: border-box;
+  min-height: 68px;
   max-height: 144px;
   resize: none;
   background: var(--bg-input);
@@ -26,16 +27,16 @@
   color: var(--text-muted);
 }
 
-.input-controls {
+.left-controls {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-items: center;
 }
 
-.mode-toggle {
+.right-controls {
   display: flex;
-  gap: 2px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .mode-btn {
@@ -61,13 +62,53 @@
 }
 
 .send-btn {
-  height: 48px;
-  padding: 0 16px;
+  height: 32px;
+  padding: 0 12px;
+  min-width: 60px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   border-radius: 4px;
   cursor: pointer;
   border: 1px solid var(--border-medium);
+}
+
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* === Dictation mic button === */
+
+.mic-btn {
+  height: 32px;
+  min-width: 60px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.mic-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.mic-btn.mic-active {
+  background: var(--text-primary);
+  color: var(--bg-black);
+  border-color: var(--text-primary);
+  animation: mic-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
 }

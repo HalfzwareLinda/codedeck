@@ -4,6 +4,7 @@ dist/
 
 # Rust build
 src-tauri/target/
+tauri-plugin-speech-recognizer/target/
 
 # Generated Android project (rebuild with `cargo tauri android init`)
 src-tauri/gen/

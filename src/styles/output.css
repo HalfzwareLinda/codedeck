@@ -63,6 +63,7 @@
   line-height: 1.6;
   padding: 4px 0;
   color: var(--text-primary);
+  overflow-wrap: break-word;
 }
 
 /* react-markdown overrides */

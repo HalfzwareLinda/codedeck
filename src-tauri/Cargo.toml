@@ -34,6 +34,7 @@ tokio-stream = "0.1"
 globset = "0.4"
 async-trait = "0.1"
 tauri-plugin-stronghold = "2"
+tauri-plugin-speech-recognizer = { path = "../tauri-plugin-speech-recognizer" }
 
 [profile.dev.package.scrypt]
 opt-level = 3
