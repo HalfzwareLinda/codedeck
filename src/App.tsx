@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useUIStore } from './stores/uiStore';
 import { useSessionStore } from './stores/sessionStore';
+import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import Sidebar from './components/Sidebar';
 import MainPanel from './components/MainPanel';
@@ -17,12 +18,16 @@ export default function App() {
   const initEventListeners = useSessionStore((s) => s.initEventListeners);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const loadConfig = useSessionStore((s) => s.loadConfig);
+  const loadPersistedDms = useDmStore((s) => s.loadPersisted);
+  const connectDms = useDmStore((s) => s.connect);
 
   useEffect(() => {
     loadSessions();
     loadConfig();
     initEventListeners();
-  }, [loadSessions, loadConfig, initEventListeners]);
+    loadPersistedDms();
+    connectDms();
+  }, [loadSessions, loadConfig, initEventListeners, loadPersistedDms, connectDms]);
 
   return (
     <div style={{

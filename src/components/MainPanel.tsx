@@ -1,13 +1,18 @@
 import { useSessionStore } from '../stores/sessionStore';
+import { useDmStore } from '../stores/dmStore';
+import { useUIStore } from '../stores/uiStore';
 import SessionHeader from './SessionHeader';
 import OutputStream from './OutputStream';
 import PermissionBar from './PermissionBar';
 import InputBar from './InputBar';
+import DmConversationView from './DmConversationView';
 
 export default function MainPanel({ isWide }: { isWide: boolean }) {
+  const panelMode = useUIStore((s) => s.panelMode);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   const sessions = useSessionStore((s) => s.sessions);
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const activeConversationId = useDmStore((s) => s.activeConversationId);
 
   return (
     <div style={{
@@ -18,10 +23,11 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
       minWidth: 0,
       background: 'var(--bg-black)',
     }}>
-      <SessionHeader session={activeSession} isWide={isWide} />
-
-      {activeSession ? (
+      {panelMode === 'dm' && activeConversationId ? (
+        <DmConversationView conversationId={activeConversationId} />
+      ) : panelMode === 'session' && activeSession ? (
         <>
+          <SessionHeader session={activeSession} isWide={isWide} />
           <OutputStream sessionId={activeSession.id} />
           {activeSession.state === 'waiting_permission' && activeSession.pending_permissions.length > 0 && (
             <PermissionBar session={activeSession} />

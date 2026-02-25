@@ -52,3 +52,29 @@ export interface AppConfig {
   max_sessions: number;
   model: string;
 }
+
+// --- Nostr / DM Types ---
+
+export type PanelMode = 'session' | 'dm';
+
+export interface NostrConfig {
+  private_key_hex: string | null;
+  relays: string[];
+}
+
+export interface DmConversation {
+  id: string;
+  participants: string[];
+  display_name: string;
+  last_message_at: string;
+  unread_count: number;
+}
+
+export interface DmMessage {
+  id: string;
+  conversation_id: string;
+  sender_pubkey: string;
+  content: string;
+  timestamp: string;
+  status: 'sent' | 'delivered' | 'failed';
+}

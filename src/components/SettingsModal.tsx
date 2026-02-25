@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
+import { useDmStore } from '../stores/dmStore';
 import { AppConfig, AgentMode } from '../types';
+import { parsePrivateKey, getPubkeyHex } from '../services/nostrService';
+import * as nip19 from 'nostr-tools/nip19';
 import '../styles/modal.css';
 
 export default function SettingsModal() {
   const config = useSessionStore((s) => s.config);
   const updateConfig = useSessionStore((s) => s.updateConfig);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const nostrConfig = useDmStore((s) => s.nostrConfig);
+  const updateNostrConfig = useDmStore((s) => s.updateNostrConfig);
 
   const [local, setLocal] = useState<AppConfig>(config || {
     anthropic_api_key: null,
@@ -22,13 +27,40 @@ export default function SettingsModal() {
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [showPat, setShowPat] = useState(false);
+  const [showNsec, setShowNsec] = useState(false);
+  const [nostrKey, setNostrKey] = useState(nostrConfig.private_key_hex || '');
+  const [relayList, setRelayList] = useState(nostrConfig.relays.join('\n'));
 
   useEffect(() => {
     if (config) setLocal(config);
   }, [config]);
 
+  const derivedNpub = useMemo(() => {
+    if (!nostrKey) return '';
+    const sk = parsePrivateKey(nostrKey);
+    if (!sk) return '';
+    const hex = getPubkeyHex(sk);
+    return nip19.npubEncode(hex);
+  }, [nostrKey]);
+
   const handleSave = () => {
     updateConfig(local);
+
+    // Parse and save nostr config — store as hex internally
+    const sk = nostrKey ? parsePrivateKey(nostrKey) : null;
+    const privateKeyHex = sk
+      ? Array.from(sk).map(b => b.toString(16).padStart(2, '0')).join('')
+      : null;
+    const relays = relayList
+      .split('\n')
+      .map(r => r.trim())
+      .filter(r => r.startsWith('wss://') || r.startsWith('ws://'));
+
+    updateNostrConfig({
+      private_key_hex: privateKeyHex,
+      relays: relays.length > 0 ? relays : ['wss://relay.damus.io', 'wss://nos.lol'],
+    });
+
     setSettingsOpen(false);
   };
 
@@ -129,6 +161,46 @@ export default function SettingsModal() {
               <div className="toggle-knob" />
             </button>
           </div>
+        </div>
+
+        {/* Nostr Identity */}
+        <div className="modal-section">
+          <h3 className="modal-section-title">Nostr Identity</h3>
+
+          <label className="modal-label">Private Key (nsec or hex)</label>
+          <div className="input-with-toggle" style={{ marginBottom: 16 }}>
+            <input
+              className="modal-input"
+              type={showNsec ? 'text' : 'password'}
+              value={nostrKey}
+              onChange={(e) => setNostrKey(e.target.value)}
+              placeholder="nsec1... or 64-char hex"
+            />
+            <button className="show-hide-btn" onClick={() => setShowNsec(!showNsec)}>
+              {showNsec ? 'Hide' : 'Show'}
+            </button>
+          </div>
+
+          {derivedNpub && (
+            <>
+              <label className="modal-label">Your Public Key</label>
+              <input
+                className="modal-input"
+                value={derivedNpub}
+                readOnly
+                style={{ color: 'var(--text-secondary)', marginBottom: 16 }}
+              />
+            </>
+          )}
+
+          <label className="modal-label">DM Relays (one per line)</label>
+          <textarea
+            className="modal-input"
+            value={relayList}
+            onChange={(e) => setRelayList(e.target.value)}
+            placeholder={'wss://relay.damus.io\nwss://nos.lol'}
+            style={{ height: 80, resize: 'vertical', fontFamily: 'inherit' }}
+          />
         </div>
 
         <button className="modal-primary-btn" onClick={handleSave}>
