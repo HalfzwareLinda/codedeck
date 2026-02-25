@@ -386,6 +386,7 @@ mod tests {
         let (p, dir) = temp_persistence();
         let history = ConversationHistory {
             messages: vec![serde_json::json!({"role": "user", "content": "test"})],
+            summary: None,
         };
         p.save_conversation("session-1", &history).unwrap();
         let loaded = p.load_conversation("session-1").unwrap();

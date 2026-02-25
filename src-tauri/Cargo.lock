@@ -608,6 +608,7 @@ name = "codedeck"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "dirs 6.0.0",
  "futures-util",
