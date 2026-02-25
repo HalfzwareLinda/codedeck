@@ -52,6 +52,7 @@ export const api = {
     invoke<Session>('create_session', { name, group, repoUrl, branch }),
   deleteSession: (sessionId: string) => invoke('delete_session', { sessionId }),
   sendMessage: (sessionId: string, text: string) => invoke('send_message', { sessionId, text }),
+  cancelAgent: (sessionId: string) => invoke('cancel_agent', { sessionId }),
   respondPermission: (sessionId: string, requestId: string, allow: boolean) =>
     invoke('respond_permission', { sessionId, requestId, allow }),
   setMode: (sessionId: string, mode: AgentMode) => invoke('set_mode', { sessionId, mode }),

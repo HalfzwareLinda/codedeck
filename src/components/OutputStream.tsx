@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useCallback, CSSProperties } from 'react';
 import Markdown from 'react-markdown';
+import { List, useListRef, useDynamicRowHeight } from 'react-window';
 import { useSessionStore } from '../stores/sessionStore';
 import { OutputEntry } from '../types';
 import '../styles/output.css';
 
 const EMPTY_OUTPUTS: OutputEntry[] = [];
+const DEFAULT_ROW_HEIGHT = 40;
 
 function ActionEntry({ entry }: { entry: OutputEntry }) {
   return (
@@ -62,49 +64,103 @@ function OutputItem({ entry }: { entry: OutputEntry }) {
   }
 }
 
+interface RowProps {
+  outputs: OutputEntry[];
+}
+
+function OutputRow({
+  index,
+  style,
+  outputs,
+}: {
+  index: number;
+  style: CSSProperties;
+  ariaAttributes: { 'aria-posinset': number; 'aria-setsize': number; role: 'listitem' };
+  outputs: OutputEntry[];
+}) {
+  const entry = outputs[index];
+  return (
+    <div style={style}>
+      <OutputItem entry={entry} />
+    </div>
+  );
+}
+
 export default function OutputStream({ sessionId }: { sessionId: string }) {
   const outputs = useSessionStore((s) => s.outputs[sessionId] ?? EMPTY_OUTPUTS);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useListRef(null);
+  const dynamicHeight = useDynamicRowHeight({ defaultRowHeight: DEFAULT_ROW_HEIGHT });
   const [autoScroll, setAutoScroll] = useState(true);
   const [showPill, setShowPill] = useState(false);
+  const [prevCount, setPrevCount] = useState(0);
 
+  // Auto-scroll to bottom when new outputs arrive
   useEffect(() => {
-    if (autoScroll && containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    } else if (!autoScroll && outputs.length > 0) {
-      setShowPill(true);
+    if (outputs.length > prevCount) {
+      if (autoScroll && listRef.current) {
+        listRef.current.scrollToRow({ index: outputs.length - 1, align: 'end' });
+      } else if (!autoScroll) {
+        setShowPill(true);
+      }
+      setPrevCount(outputs.length);
     }
-  }, [outputs, autoScroll]);
+  }, [outputs.length, autoScroll, prevCount, listRef]);
 
-  const handleScroll = () => {
-    if (!containerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
-    setAutoScroll(atBottom);
-    if (atBottom) setShowPill(false);
-  };
+  // Detect when user scrolls away from bottom
+  const handleResize = useCallback((_size: { height: number; width: number }) => {
+    // On resize, re-scroll if auto-scroll is on
+    if (autoScroll && listRef.current && outputs.length > 0) {
+      listRef.current.scrollToRow({ index: outputs.length - 1, align: 'end' });
+    }
+  }, [autoScroll, outputs.length, listRef]);
 
-  const scrollToBottom = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+  const scrollToBottom = useCallback(() => {
+    if (listRef.current && outputs.length > 0) {
+      listRef.current.scrollToRow({ index: outputs.length - 1, align: 'end' });
       setAutoScroll(true);
       setShowPill(false);
     }
-  };
+  }, [outputs.length, listRef]);
+
+  // Track scroll position to detect manual scroll-away
+  const handleNativeScroll = useCallback(() => {
+    const el = listRef.current?.element;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+    setAutoScroll(atBottom);
+    if (atBottom) setShowPill(false);
+  }, [listRef]);
+
+  // Attach native scroll listener to the list's outer element
+  useEffect(() => {
+    const el = listRef.current?.element;
+    if (!el) return;
+    el.addEventListener('scroll', handleNativeScroll);
+    return () => el.removeEventListener('scroll', handleNativeScroll);
+  }, [listRef, handleNativeScroll]);
+
+  const rowProps: RowProps = { outputs };
 
   return (
     <div className="output-container">
-      <div
-        ref={containerRef}
-        className="output-scroll"
-        onScroll={handleScroll}
-      >
-        {outputs.length === 0 ? (
+      {outputs.length === 0 ? (
+        <div className="output-scroll">
           <div className="output-empty">Send a message to start the agent</div>
-        ) : (
-          outputs.map((entry, i) => <OutputItem key={i} entry={entry} />)
-        )}
-      </div>
+        </div>
+      ) : (
+        <List<RowProps>
+          listRef={listRef}
+          className="output-virtual-list"
+          rowCount={outputs.length}
+          rowHeight={dynamicHeight}
+          rowComponent={OutputRow}
+          rowProps={rowProps}
+          overscanCount={10}
+          onResize={handleResize}
+          style={{ height: '100%' }}
+        />
+      )}
       {showPill && (
         <button className="output-new-pill" onClick={scrollToBottom}>
           New output

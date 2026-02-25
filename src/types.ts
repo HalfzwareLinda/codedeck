@@ -17,6 +17,7 @@ export interface Session {
   pending_permissions: PermissionRequest[];
   git_sync_status: GitSyncStatus;
   token_usage: TokenUsage;
+  workspace_ready: boolean;
 }
 
 export interface TokenUsage {

@@ -19,6 +19,7 @@ interface SessionStore {
   createSession: (name: string, group: string, repoUrl: string, branch: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   sendMessage: (sessionId: string, text: string) => Promise<void>;
+  cancelAgent: (sessionId: string) => Promise<void>;
   respondPermission: (sessionId: string, requestId: string, allow: boolean) => Promise<void>;
   setMode: (sessionId: string, mode: AgentMode) => Promise<void>;
   updateConfig: (config: AppConfig) => Promise<void>;
@@ -165,6 +166,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         pending_permissions: [],
         git_sync_status: 'never_pushed',
         token_usage: { input_tokens: 0, output_tokens: 0, total_cost_usd: 0 },
+        workspace_ready: true,
       };
       set((state) => ({ sessions: [...state.sessions, mockSession], activeSessionId: mockSession.id }));
       return;
@@ -200,6 +202,31 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       get().addOutput(sessionId, {
         entry_type: 'error',
         content: `Error: ${e}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  },
+
+  cancelAgent: async (sessionId) => {
+    if (!isTauri()) {
+      // Mock: just set to completed
+      const session = get().sessions.find(s => s.id === sessionId);
+      if (session) {
+        get().updateSession({ ...session, state: 'completed', pending_permissions: [] });
+        get().addOutput(sessionId, {
+          entry_type: 'system',
+          content: 'Agent cancelled.',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return;
+    }
+    try {
+      await api.cancelAgent(sessionId);
+    } catch (e) {
+      get().addOutput(sessionId, {
+        entry_type: 'error',
+        content: `Cancel failed: ${e}`,
         timestamp: new Date().toISOString(),
       });
     }

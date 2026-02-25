@@ -12,6 +12,9 @@ export default function SessionHeader({ session, isWide }: { session?: Session; 
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const tokenUsage = useSessionStore((s) => session ? s.tokenUsage[session.id] : undefined);
+  const cancelAgent = useSessionStore((s) => s.cancelAgent);
+
+  const isRunning = session?.state === 'running' || session?.state === 'waiting_permission';
 
   return (
     <div className="session-header">
@@ -28,11 +31,25 @@ export default function SessionHeader({ session, isWide }: { session?: Session; 
       {session ? (
         <>
           <div className="header-info">
-            <div className="header-title">{session.name}</div>
+            <div className="header-title">
+              {session.name}
+              {!session.workspace_ready && (
+                <span className="header-cloning"> (cloning...)</span>
+              )}
+            </div>
             <div className="header-subtitle">
               {session.group}:{session.workspace_path} · {session.branch}
             </div>
           </div>
+          {isRunning && (
+            <button
+              className="header-btn header-cancel"
+              onClick={() => cancelAgent(session.id)}
+              title="Cancel agent"
+            >
+              &#x25A0;
+            </button>
+          )}
           {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
             <div className="header-tokens">{formatTokens(tokenUsage)}</div>
           )}
