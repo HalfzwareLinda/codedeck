@@ -35,6 +35,7 @@ export function useSpeechRecognition(
   const mockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cleanupRef = useRef<Array<() => void>>([]);
   const finalDeliveredRef = useRef(false);
+  const lastInterimRef = useRef('');
 
   // Check availability on mount (Tauri only)
   useEffect(() => {
@@ -76,6 +77,7 @@ export function useSpeechRecognition(
             if (!mounted) return;
             if (data.isFinal) {
               finalDeliveredRef.current = true;
+              lastInterimRef.current = '';
               onFinalResultRef.current(data.text);
               setInterimTranscript('');
               setIsListening(false);
@@ -92,9 +94,16 @@ export function useSpeechRecognition(
           (data: RecognitionError) => {
             if (!mounted) return;
             // ERROR_CLIENT (5) and ERROR_NO_MATCH (7) commonly fire after
-            // programmatic stopListening() — not real errors
+            // programmatic stopListening() — not real errors, but the
+            // definitive signal that onResults() won't come
             const isStopSideEffect = data.code === 5 || data.code === 7;
-            if (!isStopSideEffect) {
+            if (isStopSideEffect) {
+              if (!finalDeliveredRef.current && lastInterimRef.current) {
+                finalDeliveredRef.current = true;
+                onFinalResultRef.current(lastInterimRef.current);
+                lastInterimRef.current = '';
+              }
+            } else {
               setError(data.error);
             }
             setIsListening(false);
@@ -201,8 +210,8 @@ export function useSpeechRecognition(
       return;
     }
 
-    // Capture interim transcript before clearing — fallback if onResults() never fires
-    const lastInterim = interimTranscript;
+    // Store interim transcript for the error listener fallback
+    lastInterimRef.current = interimTranscript;
     finalDeliveredRef.current = false;
 
     try {
@@ -213,16 +222,6 @@ export function useSpeechRecognition(
 
     setIsListening(false);
     setInterimTranscript('');
-
-    // Fallback: if Android doesn't deliver onResults within 500ms,
-    // commit the last interim transcript as the final result
-    if (lastInterim) {
-      setTimeout(() => {
-        if (!finalDeliveredRef.current) {
-          onFinalResultRef.current(lastInterim);
-        }
-      }, 500);
-    }
   }, [interimTranscript]);
 
   return {
