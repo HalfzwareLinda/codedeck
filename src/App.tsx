@@ -29,6 +29,25 @@ export default function App() {
     connectDms();
   }, [loadSessions, loadConfig, initEventListeners, loadPersistedDms, connectDms]);
 
+  // Track keyboard visibility via Visual Viewport API (fallback for Android WebView)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      const offset = window.innerHeight - vv.height;
+      document.documentElement.style.setProperty(
+        '--keyboard-offset', `${Math.max(0, offset)}px`
+      );
+    };
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+    onResize();
+    return () => {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    };
+  }, []);
+
   return (
     <div style={{
       display: 'flex',

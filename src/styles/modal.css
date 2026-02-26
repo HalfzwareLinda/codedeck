@@ -26,6 +26,7 @@
   width: 100%;
   max-width: 500px;
   border-radius: 12px 12px 0 0;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 .modal-header {

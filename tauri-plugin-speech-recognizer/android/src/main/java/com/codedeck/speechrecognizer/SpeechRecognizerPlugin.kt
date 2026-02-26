@@ -225,11 +225,15 @@ class SpeechRecognizerPlugin(private val activity: Activity) : Plugin(activity) 
             activity.runOnUiThread {
                 speechRecognizer?.stopListening()
                 isListening = false
+                val ret = JSObject()
+                ret.put("success", true)
+                invoke.resolve(ret)
             }
+        } else {
+            val ret = JSObject()
+            ret.put("success", true)
+            invoke.resolve(ret)
         }
-        val ret = JSObject()
-        ret.put("success", true)
-        invoke.resolve(ret)
     }
 
     override fun onDestroy() {

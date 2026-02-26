@@ -34,6 +34,7 @@ export function useSpeechRecognition(
   onFinalResultRef.current = onFinalResult;
   const mockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cleanupRef = useRef<Array<() => void>>([]);
+  const finalDeliveredRef = useRef(false);
 
   // Check availability on mount (Tauri only)
   useEffect(() => {
@@ -74,6 +75,7 @@ export function useSpeechRecognition(
           (data: RecognitionResult) => {
             if (!mounted) return;
             if (data.isFinal) {
+              finalDeliveredRef.current = true;
               onFinalResultRef.current(data.text);
               setInterimTranscript('');
               setIsListening(false);
@@ -89,7 +91,12 @@ export function useSpeechRecognition(
           'error',
           (data: RecognitionError) => {
             if (!mounted) return;
-            setError(data.error);
+            // ERROR_CLIENT (5) and ERROR_NO_MATCH (7) commonly fire after
+            // programmatic stopListening() — not real errors
+            const isStopSideEffect = data.code === 5 || data.code === 7;
+            if (!isStopSideEffect) {
+              setError(data.error);
+            }
             setIsListening(false);
             setInterimTranscript('');
           }
@@ -194,13 +201,28 @@ export function useSpeechRecognition(
       return;
     }
 
+    // Capture interim transcript before clearing — fallback if onResults() never fires
+    const lastInterim = interimTranscript;
+    finalDeliveredRef.current = false;
+
     try {
       await invoke('plugin:speech-recognizer|stop_listening');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+
     setIsListening(false);
     setInterimTranscript('');
+
+    // Fallback: if Android doesn't deliver onResults within 500ms,
+    // commit the last interim transcript as the final result
+    if (lastInterim) {
+      setTimeout(() => {
+        if (!finalDeliveredRef.current) {
+          onFinalResultRef.current(lastInterim);
+        }
+      }, 500);
+    }
   }, [interimTranscript]);
 
   return {
