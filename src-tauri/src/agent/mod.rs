@@ -28,6 +28,17 @@ const MAX_RETRIES: u32 = 3;
 // Re-export for lib.rs
 pub use git::{git_clone, git_pull_in_workspace, git_push_in_workspace};
 
+/// Attach the correct Anthropic auth header based on key prefix.
+/// Direct API keys (`sk-ant-api03-`) use `x-api-key`.
+/// OAuth access tokens (`sk-ant-oat01-`) use `Authorization: Bearer`.
+pub fn with_anthropic_auth(builder: reqwest::RequestBuilder, key: &str) -> reqwest::RequestBuilder {
+    if key.starts_with("sk-ant-oat01-") {
+        builder.header("Authorization", format!("Bearer {}", key))
+    } else {
+        builder.header("x-api-key", key)
+    }
+}
+
 fn emit_output(app: &tauri::AppHandle, session_id: &str, entry: &OutputEntry) {
     let _ = app.emit(
         "session-output",
@@ -204,9 +215,10 @@ pub async fn run_agent(
                 return handle_cancellation(app, session_id, &state, &history);
             }
 
-            let resp = client
-                .post("https://api.anthropic.com/v1/messages")
-                .header("x-api-key", api_key)
+            let resp = with_anthropic_auth(
+                    client.post("https://api.anthropic.com/v1/messages"),
+                    api_key,
+                )
                 .header("anthropic-version", ANTHROPIC_API_VERSION)
                 .header("content-type", "application/json")
                 .json(&request)

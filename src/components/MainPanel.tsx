@@ -24,7 +24,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
       background: 'var(--bg-black)',
     }}>
       {panelMode === 'dm' && activeConversationId ? (
-        <DmConversationView conversationId={activeConversationId} />
+        <DmConversationView conversationId={activeConversationId} isWide={isWide} />
       ) : panelMode === 'session' && activeSession ? (
         <>
           <SessionHeader session={activeSession} isWide={isWide} />
@@ -35,16 +35,19 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
           <InputBar session={activeSession} />
         </>
       ) : (
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--text-muted)',
-          fontSize: 15,
-        }}>
-          Select or create a session to get started
-        </div>
+        <>
+          <SessionHeader isWide={isWide} />
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-muted)',
+            fontSize: 15,
+          }}>
+            Select or create a session to get started
+          </div>
+        </>
       )}
     </div>
   );

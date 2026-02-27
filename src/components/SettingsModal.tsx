@@ -4,6 +4,7 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { AppConfig, AgentMode } from '../types';
 import { parsePrivateKey, getPubkeyHex } from '../services/nostrService';
+import { api } from '../ipc/tauri';
 import * as nip19 from 'nostr-tools/nip19';
 import '../styles/modal.css';
 
@@ -30,6 +31,27 @@ export default function SettingsModal() {
   const [showNsec, setShowNsec] = useState(false);
   const [nostrKey, setNostrKey] = useState(nostrConfig.private_key_hex || '');
   const [relayList, setRelayList] = useState(nostrConfig.relays.join('\n'));
+  const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
+  const [apiKeyError, setApiKeyError] = useState('');
+
+  const handleTestApiKey = async () => {
+    const key = local.anthropic_api_key?.trim();
+    if (!key) return;
+    setApiKeyStatus('testing');
+    setApiKeyError('');
+    try {
+      const result = await api.testApiKey(key);
+      if (result) {
+        setApiKeyStatus('valid');
+      } else {
+        setApiKeyStatus('invalid');
+        setApiKeyError('No response from API');
+      }
+    } catch (e: unknown) {
+      setApiKeyStatus('invalid');
+      setApiKeyError(String(e) || 'Unknown error');
+    }
+  };
 
   useEffect(() => {
     if (config) setLocal(config);
@@ -79,17 +101,43 @@ export default function SettingsModal() {
           <h3 className="modal-section-title">Authentication</h3>
 
           <label className="modal-label">Anthropic API Key</label>
-          <div className="input-with-toggle" style={{ marginBottom: 16 }}>
+          <div className="input-with-toggle" style={{ marginBottom: 4 }}>
             <input
               className="modal-input"
               type={showApiKey ? 'text' : 'password'}
               value={local.anthropic_api_key || ''}
-              onChange={(e) => setLocal({ ...local, anthropic_api_key: e.target.value || null })}
-              placeholder="sk-ant-..."
+              onChange={(e) => {
+                setLocal({ ...local, anthropic_api_key: e.target.value || null });
+                setApiKeyStatus('idle');
+                setApiKeyError('');
+              }}
+              placeholder="sk-ant-api03-... or sk-ant-oat01-..."
             />
             <button className="show-hide-btn" onClick={() => setShowApiKey(!showApiKey)}>
               {showApiKey ? 'Hide' : 'Show'}
             </button>
+            <button
+              className="show-hide-btn"
+              onClick={handleTestApiKey}
+              disabled={apiKeyStatus === 'testing' || !local.anthropic_api_key}
+              style={{ marginLeft: 4 }}
+            >
+              {apiKeyStatus === 'testing' ? '...' : 'Test'}
+            </button>
+          </div>
+          <div style={{ fontSize: 11, padding: '0 0 12px', minHeight: 16 }}>
+            {apiKeyStatus === 'testing' && (
+              <span style={{ color: 'var(--text-muted)' }}>Testing API key...</span>
+            )}
+            {apiKeyStatus === 'valid' && (
+              <span style={{ color: '#22c55e' }}>Valid</span>
+            )}
+            {apiKeyStatus === 'invalid' && (
+              <span style={{ color: '#ef4444' }}>{apiKeyError || 'Invalid key'}</span>
+            )}
+            {apiKeyStatus === 'idle' && !local.anthropic_api_key && (
+              <span style={{ color: 'var(--text-muted)' }}>Required for agent sessions</span>
+            )}
           </div>
 
           <label className="modal-label">GitHub Personal Access Token</label>

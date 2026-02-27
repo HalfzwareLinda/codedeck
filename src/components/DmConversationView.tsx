@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useDmStore } from '../stores/dmStore';
+import { useUIStore } from '../stores/uiStore';
 import { getPubkeyHex } from '../services/nostrService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import '../styles/dm.css';
+import '../styles/header.css';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -17,11 +19,13 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-export default function DmConversationView({ conversationId }: { conversationId: string }) {
+export default function DmConversationView({ conversationId, isWide }: { conversationId: string; isWide: boolean }) {
   const conversation = useDmStore((s) => s.conversations.find(c => c.id === conversationId));
   const messages = useDmStore((s) => s.messages[conversationId] || []);
   const sendDm = useDmStore((s) => s.sendDm);
   const nostrConfig = useDmStore((s) => s.nostrConfig);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
 
   const [text, setText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -92,7 +96,7 @@ export default function DmConversationView({ conversationId }: { conversationId:
   if (!conversation) {
     return (
       <div className="dm-view">
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
           Conversation not found
         </div>
       </div>
@@ -101,8 +105,18 @@ export default function DmConversationView({ conversationId }: { conversationId:
 
   return (
     <div className="dm-view">
-      <div className="dm-header">
-        <span className="dm-header-name">{conversation.display_name}</span>
+      <div className="session-header">
+        {!isWide && (
+          <button className="header-btn header-hamburger" onClick={() => setSidebarOpen(true)}>
+            &#9776;
+          </button>
+        )}
+        <button className="header-btn header-settings" onClick={() => setSettingsOpen(true)}>
+          &#9881;
+        </button>
+        <div className="header-info">
+          <div className="header-title">{conversation.display_name}</div>
+        </div>
       </div>
 
       <div className="dm-messages">

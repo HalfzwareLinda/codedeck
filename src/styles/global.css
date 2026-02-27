@@ -20,7 +20,7 @@
   --status-waiting: #FFFFFF;
   --status-running: #999999;
   --status-idle: #333333;
-  --status-error: #666666;
+  --status-error: #ef4444;
 
   --allow-bg: #FFFFFF;
   --allow-text: #000000;

@@ -37,6 +37,27 @@ export function parsePrivateKey(input: string): Uint8Array | null {
   return null;
 }
 
+/** Convert npub bech32 or 64-char hex to hex pubkey string. Returns null on invalid input. */
+export function parsePublicKey(input: string): string | null {
+  const trimmed = input.trim();
+
+  // npub bech32
+  if (trimmed.startsWith('npub1')) {
+    try {
+      const decoded = nip19.decode(trimmed);
+      if (decoded.type === 'npub') return decoded.data as string;
+    } catch { /* invalid bech32 */ }
+    return null;
+  }
+
+  // 64-char hex
+  if (/^[0-9a-f]{64}$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  return null;
+}
+
 /** Derive hex public key from secret key bytes. */
 export function getPubkeyHex(sk: Uint8Array): string {
   return getPublicKey(sk);

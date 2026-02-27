@@ -4,6 +4,14 @@ Multi-session agentic coding interface for Android, built with Tauri v2 (React +
 
 Designed for the Google Pixel 9 Pro Fold inner display (landscape), but works on desktop too.
 
+## Download
+
+**[Download CodeDeck v0.2.0 for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/download/v0.2.0/CodeDeck-v0.2.0-android.apk)** — 19 MB, arm64
+
+Requirements: Android 7.0+, ARM64 device (Pixel 9 Pro Fold, etc.), Anthropic API key.
+
+See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases)
+
 ## Features
 
 - Multiple concurrent Claude Code agent sessions

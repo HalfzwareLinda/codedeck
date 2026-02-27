@@ -1,8 +1,8 @@
 .session-header {
-  height: 56px;
+  min-height: 56px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: calc(0px + env(safe-area-inset-top, 0px)) 16px 0;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
   gap: 12px;

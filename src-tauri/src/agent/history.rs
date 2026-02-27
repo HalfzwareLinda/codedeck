@@ -2,6 +2,7 @@ use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 use super::streaming::ANTHROPIC_API_VERSION;
+use super::with_anthropic_auth;
 
 /// Model used for conversation summarization — Haiku is fast and cheap
 pub const SUMMARIZATION_MODEL: &str = "claude-haiku-4-5-20251001";
@@ -136,8 +137,10 @@ pub async fn summarize_conversation(
 
     // Non-streaming API call with cancellation support
     let response = tokio::select! {
-        resp = client.post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", api_key)
+        resp = with_anthropic_auth(
+                client.post("https://api.anthropic.com/v1/messages"),
+                api_key,
+            )
             .header("anthropic-version", ANTHROPIC_API_VERSION)
             .header("content-type", "application/json")
             .json(&request_body)

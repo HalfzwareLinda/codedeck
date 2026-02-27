@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
+import { parsePublicKey } from '../services/nostrService';
 import { Session } from '../types';
 import DmTile from './DmTile';
 import '../styles/sidebar.css';
@@ -47,15 +48,24 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
 
 function NewDmInput({ onClose }: { onClose: () => void }) {
   const [pubkey, setPubkey] = useState('');
+  const [error, setError] = useState('');
   const startConversation = useDmStore((s) => s.startConversation);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
 
   const handleSubmit = () => {
     const trimmed = pubkey.trim();
     if (!trimmed) return;
-    startConversation(trimmed);
+
+    const parsedHex = parsePublicKey(trimmed);
+    if (!parsedHex) {
+      setError('Invalid public key (npub or hex)');
+      return;
+    }
+
+    startConversation(parsedHex);
     setPanelMode('dm');
     setPubkey('');
+    setError('');
     onClose();
   };
 
@@ -65,13 +75,14 @@ function NewDmInput({ onClose }: { onClose: () => void }) {
         autoFocus
         className="new-dm-field"
         value={pubkey}
-        onChange={(e) => setPubkey(e.target.value)}
+        onChange={(e) => { setPubkey(e.target.value); setError(''); }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleSubmit();
           if (e.key === 'Escape') onClose();
         }}
         placeholder="npub or hex pubkey"
       />
+      {error && <div style={{ color: '#ef4444', fontSize: 11, padding: '2px 8px' }}>{error}</div>}
     </div>
   );
 }

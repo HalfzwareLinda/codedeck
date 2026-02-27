@@ -518,6 +518,52 @@ async fn git_pull(
     }
 }
 
+/// Test an Anthropic API key by making a minimal API call.
+/// The key is passed directly from the frontend (not read from Stronghold)
+/// so this works before the user has saved their settings.
+#[tauri::command]
+async fn test_api_key(
+    api_key: String,
+) -> Result<String, String> {
+    if api_key.trim().is_empty() {
+        return Err("No API key provided".into());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("HTTP client error: {}", e))?;
+
+    let body = serde_json::json!({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 1,
+        "messages": [{"role": "user", "content": "Hi"}]
+    });
+
+    let resp = agent::with_anthropic_auth(
+            client.post("https://api.anthropic.com/v1/messages"),
+            &api_key,
+        )
+        .header("anthropic-version", agent::streaming::ANTHROPIC_API_VERSION)
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = resp.status();
+    if status.is_success() {
+        Ok("Valid".into())
+    } else {
+        let text = resp.text().await.unwrap_or_default();
+        let msg = serde_json::from_str::<serde_json::Value>(&text)
+            .ok()
+            .and_then(|v| v.get("error")?.get("message")?.as_str().map(String::from))
+            .unwrap_or_else(|| format!("HTTP {}", status));
+        Err(msg)
+    }
+}
+
 /// Returns the full config including secrets (read from Stronghold).
 /// The FullConfig has the same JSON shape as the old AppConfig,
 /// so the frontend TypeScript interface requires no changes.
@@ -607,6 +653,7 @@ pub fn run() {
             set_mode,
             git_push,
             git_pull,
+            test_api_key,
             get_config,
             update_config,
         ])
