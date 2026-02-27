@@ -9,6 +9,7 @@ import {
   sendRemoteInput,
   sendHistoryRequest,
 } from '../services/bridgeService';
+import { persistGet, persistSet } from '../services/persistStore';
 
 interface SessionStore {
   sessions: Session[];
@@ -40,7 +41,7 @@ interface SessionStore {
   // Remote bridge actions
   addMachine: (machine: RemoteMachine) => void;
   removeMachine: (pubkeyHex: string) => void;
-  initBridgeService: (privateKeyHex: string) => void;
+  initBridgeService: (privateKeyHex: string) => Promise<void>;
   isRemoteSession: (sessionId: string) => boolean;
   getMachineForSession: (sessionId: string) => RemoteMachine | null;
   requestSessionHistory: (sessionId: string) => Promise<void>;
@@ -341,9 +342,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return { machines: [...state.machines, machine] };
     });
     connectToMachine(machine);
-    // Persist to localStorage
-    const machines = get().machines;
-    localStorage.setItem('codedeck_machines', JSON.stringify(machines));
+    persistSet('codedeck_machines', get().machines);
   },
 
   removeMachine: (pubkeyHex) => {
@@ -352,11 +351,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
       remoteSessions: { ...state.remoteSessions, [pubkeyHex]: undefined } as Record<string, RemoteSessionInfo[]>,
     }));
-    const machines = get().machines;
-    localStorage.setItem('codedeck_machines', JSON.stringify(machines));
+    persistSet('codedeck_machines', get().machines);
   },
 
-  initBridgeService: (privateKeyHex) => {
+  initBridgeService: async (privateKeyHex) => {
     initBridge(privateKeyHex);
 
     setBridgeHandlers(
@@ -408,15 +406,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     );
 
     // Reconnect to all saved machines
-    const saved = localStorage.getItem('codedeck_machines');
-    if (saved) {
-      try {
-        const machines: RemoteMachine[] = JSON.parse(saved);
-        set({ machines });
-        for (const machine of machines) {
-          connectToMachine(machine);
-        }
-      } catch { /* ignore invalid data */ }
+    const saved = await persistGet<RemoteMachine[]>('codedeck_machines');
+    if (saved && Array.isArray(saved)) {
+      set({ machines: saved });
+      for (const machine of saved) {
+        connectToMachine(machine);
+      }
     }
   },
 

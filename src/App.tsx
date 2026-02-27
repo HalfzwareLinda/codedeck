@@ -18,6 +18,7 @@ export default function App() {
   const initEventListeners = useSessionStore((s) => s.initEventListeners);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const loadConfig = useSessionStore((s) => s.loadConfig);
+  const initBridgeService = useSessionStore((s) => s.initBridgeService);
   const loadPersistedDms = useDmStore((s) => s.loadPersisted);
   const connectDms = useDmStore((s) => s.connect);
 
@@ -25,9 +26,16 @@ export default function App() {
     loadSessions();
     loadConfig();
     initEventListeners();
-    loadPersistedDms();
-    connectDms();
-  }, [loadSessions, loadConfig, initEventListeners, loadPersistedDms, connectDms]);
+
+    // Load persisted DMs first (includes Nostr private key), then init bridge
+    loadPersistedDms().then(() => {
+      const nostrConfig = useDmStore.getState().nostrConfig;
+      if (nostrConfig.private_key_hex) {
+        initBridgeService(nostrConfig.private_key_hex);
+      }
+      connectDms();
+    });
+  }, [loadSessions, loadConfig, initEventListeners, loadPersistedDms, connectDms, initBridgeService]);
 
   // Track keyboard visibility via Visual Viewport API (fallback for Android WebView)
   useEffect(() => {

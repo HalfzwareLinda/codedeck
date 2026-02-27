@@ -617,6 +617,7 @@ async fn update_config(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_speech_recognizer::init())
         .setup(|app| {
             // Initialize Stronghold encrypted storage

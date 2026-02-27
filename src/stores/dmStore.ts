@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { DmConversation, DmMessage, NostrConfig } from '../types';
 import * as nostr from '../services/nostrService';
+import { persistGet, persistSet } from '../services/persistStore';
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol'];
 const MAX_MESSAGES_PER_CONVERSATION = 500;
@@ -23,17 +24,21 @@ interface DmStore {
   disconnect: () => void;
   sendDm: (recipientPubkey: string, content: string) => Promise<void>;
   startConversation: (recipientPubkey: string, displayName?: string) => void;
-  loadPersisted: () => void;
+  loadPersisted: () => Promise<void>;
+}
+
+interface PersistedDmData {
+  conversations: DmConversation[];
+  messages: Record<string, DmMessage[]>;
+  nostrConfig: NostrConfig;
 }
 
 function persist(state: { conversations: DmConversation[]; messages: Record<string, DmMessage[]>; nostrConfig: NostrConfig }) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      conversations: state.conversations,
-      messages: state.messages,
-      nostrConfig: state.nostrConfig,
-    }));
-  } catch { /* localStorage full — ignore */ }
+  persistSet(STORAGE_KEY, {
+    conversations: state.conversations,
+    messages: state.messages,
+    nostrConfig: state.nostrConfig,
+  });
 }
 
 // --- Mock helpers ---
@@ -260,11 +265,10 @@ export const useDmStore = create<DmStore>((set, get) => ({
     persist({ conversations: get().conversations, messages: get().messages, nostrConfig: get().nostrConfig });
   },
 
-  loadPersisted: () => {
+  loadPersisted: async () => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const data = JSON.parse(raw);
+      const data = await persistGet<PersistedDmData>(STORAGE_KEY);
+      if (!data) return;
       set({
         conversations: data.conversations || [],
         messages: data.messages || {},
