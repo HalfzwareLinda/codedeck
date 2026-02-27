@@ -78,3 +78,39 @@ export interface DmMessage {
   timestamp: string;
   status: 'sent' | 'delivered' | 'failed';
 }
+
+// --- Remote Bridge Types ---
+
+export interface RemoteMachine {
+  hostname: string;
+  npub: string;
+  pubkeyHex: string;
+  relays: string[];
+  connected: boolean;
+}
+
+export interface RemoteSessionInfo {
+  id: string;
+  slug: string;
+  cwd: string;
+  lastActivity: string;
+  lineCount: number;
+}
+
+export interface RemoteOutputEntry {
+  entryType: 'text' | 'tool_use' | 'tool_result' | 'system' | 'error' | 'progress';
+  content: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type BridgeInboundMessage =
+  | { type: 'sessions'; machine: string; sessions: RemoteSessionInfo[] }
+  | { type: 'output'; sessionId: string; seq: number; entry: RemoteOutputEntry }
+  | { type: 'history'; sessionId: string; entries: Array<{ seq: number; entry: RemoteOutputEntry }>; totalEntries: number; fromSeq: number; toSeq: number };
+
+export type BridgeOutboundMessage =
+  | { type: 'input'; sessionId: string; text: string }
+  | { type: 'permission-res'; sessionId: string; requestId: string; allow: boolean }
+  | { type: 'mode'; sessionId: string; mode: string }
+  | { type: 'history-request'; sessionId: string; afterSeq?: number };

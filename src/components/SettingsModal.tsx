@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
-import { AppConfig, AgentMode } from '../types';
-import { parsePrivateKey, getPubkeyHex } from '../services/nostrService';
+import { AppConfig, AgentMode, RemoteMachine } from '../types';
+import { parsePrivateKey, getPubkeyHex, parsePublicKey } from '../services/nostrService';
 import { api } from '../ipc/tauri';
 import * as nip19 from 'nostr-tools/nip19';
 import '../styles/modal.css';
@@ -14,6 +14,9 @@ export default function SettingsModal() {
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const nostrConfig = useDmStore((s) => s.nostrConfig);
   const updateNostrConfig = useDmStore((s) => s.updateNostrConfig);
+  const machines = useSessionStore((s) => s.machines);
+  const addMachine = useSessionStore((s) => s.addMachine);
+  const removeMachine = useSessionStore((s) => s.removeMachine);
 
   const [local, setLocal] = useState<AppConfig>(config || {
     anthropic_api_key: null,
@@ -33,6 +36,9 @@ export default function SettingsModal() {
   const [relayList, setRelayList] = useState(nostrConfig.relays.join('\n'));
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
   const [apiKeyError, setApiKeyError] = useState('');
+  const [newMachineNpub, setNewMachineNpub] = useState('');
+  const [newMachineName, setNewMachineName] = useState('');
+  const [machineError, setMachineError] = useState('');
 
   const handleTestApiKey = async () => {
     const key = local.anthropic_api_key?.trim();
@@ -249,6 +255,86 @@ export default function SettingsModal() {
             placeholder={'wss://relay.damus.io\nwss://nos.lol'}
             style={{ height: 80, resize: 'vertical', fontFamily: 'inherit' }}
           />
+        </div>
+
+        {/* Remote Machines (Codedeck Bridge) */}
+        <div className="modal-section">
+          <h3 className="modal-section-title">Remote Machines</h3>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+            Pair with machines running the Codedeck Bridge VSCode extension to control Claude Code remotely.
+          </p>
+
+          {machines.map((m) => (
+            <div key={m.pubkeyHex} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+              <div>
+                <div style={{ fontSize: 14 }}>
+                  <span className={`dm-connection-dot ${m.connected ? 'connected' : 'disconnected'}`} style={{ marginRight: 6 }} />
+                  {m.hostname}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.npub.slice(0, 20)}...</div>
+              </div>
+              <button
+                className="show-hide-btn"
+                onClick={() => removeMachine(m.pubkeyHex)}
+                style={{ color: '#ef4444' }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+
+          {machines.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+              No machines paired yet.
+            </div>
+          )}
+
+          <div style={{ marginTop: 12 }}>
+            <label className="modal-label">Bridge npub</label>
+            <input
+              className="modal-input"
+              value={newMachineNpub}
+              onChange={(e) => { setNewMachineNpub(e.target.value); setMachineError(''); }}
+              placeholder="npub1... (from Codedeck Bridge extension)"
+            />
+            <label className="modal-label">Machine name</label>
+            <input
+              className="modal-input"
+              value={newMachineName}
+              onChange={(e) => setNewMachineName(e.target.value)}
+              placeholder="e.g., My Laptop"
+            />
+            {machineError && <div style={{ color: '#ef4444', fontSize: 11, padding: '4px 0' }}>{machineError}</div>}
+            <button
+              className="show-hide-btn"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                const pubkeyHex = parsePublicKey(newMachineNpub);
+                if (!pubkeyHex) {
+                  setMachineError('Invalid npub');
+                  return;
+                }
+                const relays = relayList
+                  .split('\n')
+                  .map(r => r.trim())
+                  .filter(r => r.startsWith('wss://') || r.startsWith('ws://'));
+
+                const machine: RemoteMachine = {
+                  hostname: newMachineName || 'Remote',
+                  npub: newMachineNpub.startsWith('npub1') ? newMachineNpub : nip19.npubEncode(pubkeyHex),
+                  pubkeyHex,
+                  relays: relays.length > 0 ? relays : ['wss://relay.damus.io', 'wss://nos.lol'],
+                  connected: false,
+                };
+                addMachine(machine);
+                setNewMachineNpub('');
+                setNewMachineName('');
+                setMachineError('');
+              }}
+            >
+              + Add Machine
+            </button>
+          </div>
         </div>
 
         <button className="modal-primary-btn" onClick={handleSave}>

@@ -1,6 +1,14 @@
 import { create } from 'zustand';
-import { Session, OutputEntry, AppConfig, AgentMode, TokenUsage } from '../types';
+import { Session, OutputEntry, AppConfig, AgentMode, TokenUsage, RemoteMachine, RemoteSessionInfo, RemoteOutputEntry } from '../types';
 import { api, events, isTauri } from '../ipc/tauri';
+import {
+  initBridge,
+  setBridgeHandlers,
+  connectToMachine,
+  disconnectFromMachine,
+  sendRemoteInput,
+  sendHistoryRequest,
+} from '../services/bridgeService';
 
 interface SessionStore {
   sessions: Session[];
@@ -8,6 +16,10 @@ interface SessionStore {
   outputs: Record<string, OutputEntry[]>;
   config: AppConfig;
   tokenUsage: Record<string, TokenUsage>;
+
+  // Remote bridge state
+  machines: RemoteMachine[];
+  remoteSessions: Record<string, RemoteSessionInfo[]>; // keyed by machine pubkeyHex
 
   setActiveSession: (id: string) => void;
   addOutput: (sessionId: string, entry: OutputEntry) => void;
@@ -24,6 +36,14 @@ interface SessionStore {
   setMode: (sessionId: string, mode: AgentMode) => Promise<void>;
   updateConfig: (config: AppConfig) => Promise<void>;
   initEventListeners: () => Promise<void>;
+
+  // Remote bridge actions
+  addMachine: (machine: RemoteMachine) => void;
+  removeMachine: (pubkeyHex: string) => void;
+  initBridgeService: (privateKeyHex: string) => void;
+  isRemoteSession: (sessionId: string) => boolean;
+  getMachineForSession: (sessionId: string) => RemoteMachine | null;
+  requestSessionHistory: (sessionId: string) => Promise<void>;
 }
 
 const defaultConfig: AppConfig = {
@@ -101,6 +121,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   outputs: {},
   config: defaultConfig,
   tokenUsage: {},
+  machines: [],
+  remoteSessions: {},
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
@@ -191,6 +213,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       content: `**You:** ${text}`,
       timestamp: new Date().toISOString(),
     });
+
+    // Check if this is a remote session
+    const machine = get().getMachineForSession(sessionId);
+    if (machine) {
+      try {
+        await sendRemoteInput(machine, sessionId, text);
+      } catch (e) {
+        get().addOutput(sessionId, {
+          entry_type: 'error',
+          content: `Remote error: ${e}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return;
+    }
 
     if (!isTauri()) {
       mockAgentResponse(sessionId, text, get);
@@ -295,4 +332,131 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       get().updateTokenUsage(session_id, usage);
     });
   },
+
+  // --- Remote Bridge ---
+
+  addMachine: (machine) => {
+    set((state) => {
+      if (state.machines.some(m => m.pubkeyHex === machine.pubkeyHex)) return state;
+      return { machines: [...state.machines, machine] };
+    });
+    connectToMachine(machine);
+    // Persist to localStorage
+    const machines = get().machines;
+    localStorage.setItem('codedeck_machines', JSON.stringify(machines));
+  },
+
+  removeMachine: (pubkeyHex) => {
+    disconnectFromMachine(pubkeyHex);
+    set((state) => ({
+      machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
+      remoteSessions: { ...state.remoteSessions, [pubkeyHex]: undefined } as Record<string, RemoteSessionInfo[]>,
+    }));
+    const machines = get().machines;
+    localStorage.setItem('codedeck_machines', JSON.stringify(machines));
+  },
+
+  initBridgeService: (privateKeyHex) => {
+    initBridge(privateKeyHex);
+
+    setBridgeHandlers(
+      // onSessionList
+      (_machineName, sessions) => {
+        // Find machine by matching the event source — for now update all machines
+        // since the machine name comes from the message content
+        const machines = get().machines;
+        const machine = machines.find(m => m.hostname === _machineName) || machines[0];
+        if (machine) {
+          set((state) => ({
+            remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: sessions },
+          }));
+        }
+      },
+      // onOutput
+      (sessionId, entry, _seq) => {
+        // Map remote output entry to Codedeck's OutputEntry format
+        const mapped: OutputEntry = {
+          entry_type: mapRemoteEntryType(entry.entryType),
+          content: entry.content,
+          timestamp: entry.timestamp,
+          metadata: { ...entry.metadata, bridgeSeq: _seq },
+        };
+        get().addOutput(sessionId, mapped);
+      },
+      // onStatus
+      (machineName, status) => {
+        set((state) => ({
+          machines: state.machines.map(m =>
+            m.hostname === machineName ? { ...m, connected: status === 'connected' } : m,
+          ),
+        }));
+      },
+      // onHistory
+      (sessionId, entries, _totalEntries) => {
+        // Bulk-add history entries (sorted by seq)
+        const sorted = [...entries].sort((a, b) => a.seq - b.seq);
+        for (const { entry, seq } of sorted) {
+          const mapped: OutputEntry = {
+            entry_type: mapRemoteEntryType(entry.entryType),
+            content: entry.content,
+            timestamp: entry.timestamp,
+            metadata: { ...entry.metadata, bridgeSeq: seq },
+          };
+          get().addOutput(sessionId, mapped);
+        }
+      },
+    );
+
+    // Reconnect to all saved machines
+    const saved = localStorage.getItem('codedeck_machines');
+    if (saved) {
+      try {
+        const machines: RemoteMachine[] = JSON.parse(saved);
+        set({ machines });
+        for (const machine of machines) {
+          connectToMachine(machine);
+        }
+      } catch { /* ignore invalid data */ }
+    }
+  },
+
+  isRemoteSession: (sessionId) => {
+    const { remoteSessions } = get();
+    for (const sessions of Object.values(remoteSessions)) {
+      if (sessions?.some(s => s.id === sessionId)) return true;
+    }
+    return false;
+  },
+
+  getMachineForSession: (sessionId) => {
+    const { remoteSessions, machines } = get();
+    for (const [pubkeyHex, sessions] of Object.entries(remoteSessions)) {
+      if (sessions?.some(s => s.id === sessionId)) {
+        return machines.find(m => m.pubkeyHex === pubkeyHex) ?? null;
+      }
+    }
+    return null;
+  },
+
+  requestSessionHistory: async (sessionId) => {
+    const machine = get().getMachineForSession(sessionId);
+    if (!machine) { return; }
+    try {
+      await sendHistoryRequest(machine, sessionId);
+    } catch (e) {
+      console.error('[SessionStore] Failed to request history:', e);
+    }
+  },
 }));
+
+function mapRemoteEntryType(entryType: RemoteOutputEntry['entryType']): OutputEntry['entry_type'] {
+  switch (entryType) {
+    case 'text': return 'message';
+    case 'tool_use': return 'action';
+    case 'tool_result': return 'action';
+    case 'system': return 'system';
+    case 'error': return 'error';
+    case 'progress': return 'system';
+    default: return 'message';
+  }
+}

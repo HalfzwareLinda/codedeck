@@ -3,7 +3,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { parsePublicKey } from '../services/nostrService';
-import { Session } from '../types';
+import { Session, RemoteSessionInfo } from '../types';
 import DmTile from './DmTile';
 import '../styles/sidebar.css';
 import '../styles/dm.css';
@@ -42,6 +42,23 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
         <div className="session-card-path">{session.workspace_path} · {session.branch}</div>
       </div>
       <StatusDot state={session.state} />
+    </div>
+  );
+}
+
+function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo; isSelected: boolean }) {
+  const setActiveSession = useSessionStore((s) => s.setActiveSession);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const setPanelMode = useUIStore((s) => s.setPanelMode);
+
+  const classes = ['session-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
+
+  return (
+    <div className={classes} onClick={() => { setActiveSession(session.id); setPanelMode('session'); setSidebarOpen(false); }}>
+      <div className="session-card-info">
+        <div className="session-card-name">{session.slug}</div>
+        <div className="session-card-path">{session.cwd}</div>
+      </div>
     </div>
   );
 }
@@ -95,9 +112,11 @@ export default function Sidebar() {
   const conversations = useDmStore((s) => s.conversations);
   const activeConversationId = useDmStore((s) => s.activeConversationId);
   const connectionStatus = useDmStore((s) => s.connectionStatus);
+  const machines = useSessionStore((s) => s.machines);
+  const remoteSessions = useSessionStore((s) => s.remoteSessions);
   const [showNewDm, setShowNewDm] = useState(false);
 
-  // Group sessions
+  // Group local sessions
   const groups: Record<string, Session[]> = {};
   for (const session of sessions) {
     const group = session.group || 'DEFAULT';
@@ -109,6 +128,9 @@ export default function Sidebar() {
     (a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime(),
   );
 
+  const hasLocalSessions = sessions.length > 0;
+  const hasRemoteMachines = machines.length > 0;
+
   return (
     <div className="sidebar">
       {/* Sessions header */}
@@ -119,9 +141,42 @@ export default function Sidebar() {
 
       {/* Sessions list — fills remaining space above DMs */}
       <div className="sidebar-list">
+        {/* Remote machines */}
+        {machines.map((machine) => {
+          const machineSessions = remoteSessions[machine.pubkeyHex] || [];
+          return (
+            <div key={machine.pubkeyHex}>
+              <div className="group-heading" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className={`dm-connection-dot ${machine.connected ? 'connected' : 'disconnected'}`} />
+                {machine.hostname}
+              </div>
+              {machineSessions.map((session) => (
+                <RemoteSessionCard
+                  key={session.id}
+                  session={session}
+                  isSelected={panelMode === 'session' && session.id === activeSessionId}
+                />
+              ))}
+              {machineSessions.length === 0 && (
+                <div className="sidebar-empty" style={{ fontSize: 11, padding: '4px 16px' }}>
+                  {machine.connected ? 'No sessions' : 'Connecting...'}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Local sessions */}
+        {hasRemoteMachines && hasLocalSessions && (
+          <div className="group-heading" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="dm-connection-dot connected" />
+            This device
+          </div>
+        )}
         {Object.entries(groups).map(([group, groupSessions]) => (
           <div key={group}>
-            <div className="group-heading">{group}</div>
+            {!hasRemoteMachines && <div className="group-heading">{group}</div>}
+            {hasRemoteMachines && group !== 'DEFAULT' && <div className="group-heading" style={{ paddingLeft: 24 }}>{group}</div>}
             {groupSessions.map((session) => (
               <SessionCard
                 key={session.id}
@@ -131,7 +186,7 @@ export default function Sidebar() {
             ))}
           </div>
         ))}
-        {sessions.length === 0 && (
+        {!hasLocalSessions && !hasRemoteMachines && (
           <div className="sidebar-empty">
             No sessions yet.<br />Tap + to create one.
           </div>
