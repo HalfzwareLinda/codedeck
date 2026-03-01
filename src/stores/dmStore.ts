@@ -41,44 +41,6 @@ function persist(state: { conversations: DmConversation[]; messages: Record<stri
   });
 }
 
-// --- Mock helpers ---
-
-const MOCK_AGENTS = [
-  { pubkey: 'a'.repeat(64), name: 'Agent Alpha' },
-  { pubkey: 'b'.repeat(64), name: 'Agent Beta' },
-];
-
-const MOCK_REPLIES = [
-  'Got it, working on that now.',
-  'Task completed successfully.',
-  'I need a bit more context — could you clarify?',
-  'Running the tests now, will report back shortly.',
-  'Done! The changes have been pushed.',
-];
-
-function mockReply(conversationId: string, get: () => DmStore) {
-  const delay = 1000 + Math.random() * 2000;
-  setTimeout(() => {
-    const conv = get().conversations.find(c => c.id === conversationId);
-    if (!conv) return;
-    const agentPubkey = conv.participants.find(p => MOCK_AGENTS.some(a => a.pubkey === p));
-    if (!agentPubkey) return;
-
-    get().addMessage({
-      id: crypto.randomUUID(),
-      conversation_id: conversationId,
-      sender_pubkey: agentPubkey,
-      content: MOCK_REPLIES[Math.floor(Math.random() * MOCK_REPLIES.length)],
-      timestamp: new Date().toISOString(),
-      status: 'delivered',
-    });
-  }, delay);
-}
-
-function isMockMode(config: NostrConfig): boolean {
-  return !config.private_key_hex;
-}
-
 export const useDmStore = create<DmStore>((set, get) => ({
   conversations: [],
   messages: {},
@@ -166,40 +128,14 @@ export const useDmStore = create<DmStore>((set, get) => ({
 
   connect: () => {
     const { nostrConfig } = get();
-
-    if (isMockMode(nostrConfig)) {
-      // Mock mode: create fake conversations if none exist
-      set({ connectionStatus: 'connected' });
-      if (get().conversations.length === 0) {
-        const mockPubkey = '0'.repeat(64);
-        for (const agent of MOCK_AGENTS) {
-          const convId = nostr.conversationId(mockPubkey, agent.pubkey);
-          const now = new Date().toISOString();
-          get().addMessage({
-            id: crypto.randomUUID(),
-            conversation_id: convId,
-            sender_pubkey: agent.pubkey,
-            content: `Hello! I'm ${agent.name}, ready to assist.`,
-            timestamp: now,
-            status: 'delivered',
-          });
-          // Set display name
-          set((state) => ({
-            conversations: state.conversations.map(c =>
-              c.id === convId ? { ...c, display_name: agent.name } : c,
-            ),
-          }));
-        }
-      }
-      return;
-    }
+    if (!nostrConfig.private_key_hex) return;
 
     nostr.setHandlers(
       (msg) => get().addMessage(msg),
       (status) => get().setConnectionStatus(status),
     );
 
-    nostr.connect(nostrConfig.private_key_hex!, nostrConfig.relays);
+    nostr.connect(nostrConfig.private_key_hex, nostrConfig.relays);
   },
 
   disconnect: () => {
@@ -209,25 +145,9 @@ export const useDmStore = create<DmStore>((set, get) => ({
 
   sendDm: async (recipientPubkey, content) => {
     const { nostrConfig } = get();
+    if (!nostrConfig.private_key_hex) return;
 
-    if (isMockMode(nostrConfig)) {
-      // Mock mode
-      const mockPubkey = '0'.repeat(64);
-      const convId = nostr.conversationId(mockPubkey, recipientPubkey);
-      const msg: DmMessage = {
-        id: crypto.randomUUID(),
-        conversation_id: convId,
-        sender_pubkey: mockPubkey,
-        content,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-      };
-      get().addMessage(msg);
-      mockReply(convId, get);
-      return;
-    }
-
-    const sk = nostrConfig.private_key_hex!;
+    const sk = nostrConfig.private_key_hex;
     try {
       const msg = await nostr.sendDirectMessage(sk, recipientPubkey, content, nostrConfig.relays);
       get().addMessage(msg);
@@ -269,8 +189,15 @@ export const useDmStore = create<DmStore>((set, get) => ({
     try {
       const data = await persistGet<PersistedDmData>(STORAGE_KEY);
       if (!data) return;
+
+      // Clean up legacy mock conversations (Agent Alpha/Beta placeholders)
+      const mockPubkeys = new Set(['0'.repeat(64), 'a'.repeat(64), 'b'.repeat(64)]);
+      const conversations = (data.conversations || []).filter(
+        c => !c.participants.every(p => mockPubkeys.has(p)),
+      );
+
       set({
-        conversations: data.conversations || [],
+        conversations,
         messages: data.messages || {},
         nostrConfig: data.nostrConfig || { private_key_hex: null, relays: DEFAULT_RELAYS },
       });

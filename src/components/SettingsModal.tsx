@@ -17,6 +17,7 @@ export default function SettingsModal() {
   const machines = useSessionStore((s) => s.machines);
   const addMachine = useSessionStore((s) => s.addMachine);
   const removeMachine = useSessionStore((s) => s.removeMachine);
+  const initBridgeService = useSessionStore((s) => s.initBridgeService);
 
   const [local, setLocal] = useState<AppConfig>(config || {
     anthropic_api_key: null,
@@ -89,6 +90,11 @@ export default function SettingsModal() {
       private_key_hex: privateKeyHex,
       relays: effectiveRelays,
     });
+
+    // Ensure bridge service is initialized before adding machines
+    if (privateKeyHex) {
+      initBridgeService(privateKeyHex);
+    }
 
     // Auto-add pending machine if the npub field has a value
     if (newMachineNpub.trim()) {

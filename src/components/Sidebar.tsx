@@ -68,6 +68,7 @@ function NewDmInput({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const startConversation = useDmStore((s) => s.startConversation);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
 
   const handleSubmit = () => {
     const trimmed = pubkey.trim();
@@ -81,6 +82,7 @@ function NewDmInput({ onClose }: { onClose: () => void }) {
 
     startConversation(parsedHex);
     setPanelMode('dm');
+    setSidebarOpen(false);
     setPubkey('');
     setError('');
     onClose();
