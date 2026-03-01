@@ -1,6 +1,6 @@
 [package]
 name = "codedeck"
-version = "0.4.1"
+version = "0.4.2"
 description = "CodeDeck - Multi-session AI coding agent"
 authors = ["you"]
 license = ""
