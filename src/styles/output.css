@@ -70,6 +70,38 @@
 .assistant-message strong { color: var(--text-primary); }
 .assistant-message a { color: var(--text-secondary); text-decoration: underline; }
 
+/* Lists */
+.assistant-message ul { list-style: disc; margin: 4px 0 8px; padding-left: 24px; }
+.assistant-message ol { list-style: decimal; margin: 4px 0 8px; padding-left: 24px; }
+.assistant-message li { margin: 2px 0; line-height: 1.5; }
+.assistant-message li > ul,
+.assistant-message li > ol { margin: 2px 0; }
+
+/* Headings */
+.assistant-message h1 { font-size: 18px; font-weight: 700; margin: 12px 0 6px; }
+.assistant-message h2 { font-size: 16px; font-weight: 700; margin: 10px 0 4px; }
+.assistant-message h3 { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
+.assistant-message h4, .assistant-message h5, .assistant-message h6 {
+  font-size: 14px; font-weight: 700; margin: 6px 0 4px; color: var(--text-secondary);
+}
+
+/* Blockquotes */
+.assistant-message blockquote {
+  border-left: 3px solid var(--border-medium);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Horizontal rules */
+.assistant-message hr { border: none; border-top: 1px solid var(--border-subtle); margin: 12px 0; }
+
+/* Tables */
+.assistant-message table { border-collapse: collapse; margin: 8px 0; font-size: 13px; width: 100%; }
+.assistant-message th, .assistant-message td { border: 1px solid var(--border-subtle); padding: 4px 8px; text-align: left; }
+.assistant-message th { background: var(--bg-card); font-weight: 700; }
+
 /* --- Collapsible tool group --- */
 
 .tool-group {
@@ -203,6 +235,87 @@
   font-size: 13px;
   cursor: pointer;
   border: 1px solid var(--border-medium);
+}
+
+/* --- Plan approval bar --- */
+
+.plan-approval-bar {
+  background: var(--bg-card);
+  border: 2px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 4px 0;
+}
+
+.plan-approval-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.plan-approval-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* --- Question card --- */
+
+.question-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 4px 0;
+}
+
+.question-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.question-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question-option-btn {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.question-option-btn:active {
+  background: var(--bg-hover);
+}
+
+.question-option-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.question-option-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
 }
 
 /* --- Token usage in header --- */

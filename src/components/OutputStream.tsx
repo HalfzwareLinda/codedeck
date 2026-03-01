@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, CSSProperties } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { List, useListRef, useDynamicRowHeight } from 'react-window';
 import { useSessionStore } from '../stores/sessionStore';
 import { OutputEntry } from '../types';
@@ -7,6 +8,7 @@ import {
   useDisplayEntries,
   DisplayEntry,
   ToolGroupDisplay,
+  QuestionDisplay,
 } from '../hooks/useDisplayEntries';
 import '../styles/output.css';
 
@@ -15,11 +17,13 @@ const DEFAULT_ROW_HEIGHT = 40;
 
 // --- Entry-level components ---
 
+const remarkPlugins = [remarkGfm];
+
 function UserMessageBubble({ entry }: { entry: OutputEntry }) {
   return (
     <div className="user-message-row">
       <div className="user-message-bubble">
-        <Markdown>{entry.content}</Markdown>
+        <Markdown remarkPlugins={remarkPlugins}>{entry.content}</Markdown>
       </div>
     </div>
   );
@@ -28,7 +32,7 @@ function UserMessageBubble({ entry }: { entry: OutputEntry }) {
 function AssistantMessage({ entry }: { entry: OutputEntry }) {
   return (
     <div className="assistant-message">
-      <Markdown>{entry.content}</Markdown>
+      <Markdown remarkPlugins={remarkPlugins}>{entry.content}</Markdown>
     </div>
   );
 }
@@ -89,16 +93,61 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
   return <div className="output-system">{entry.content}</div>;
 }
 
+function PlanApprovalEntry({ sessionId }: { sessionId: string }) {
+  const sendMessage = useSessionStore((s) => s.sendMessage);
+  return (
+    <div className="plan-approval-bar">
+      <div className="plan-approval-label">Approve this plan?</div>
+      <div className="plan-approval-actions">
+        <button className="btn-allow" onClick={() => sendMessage(sessionId, 'y')}>
+          Approve
+        </button>
+        <button className="btn-deny" onClick={() => sendMessage(sessionId, 'n')}>
+          Reject
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: string }) {
+  const sendMessage = useSessionStore((s) => s.sendMessage);
+  return (
+    <div className="question-card">
+      {item.header && <div className="question-header">{item.header}</div>}
+      <div className="question-text">{item.entry.content}</div>
+      {item.options && item.options.length > 0 && (
+        <div className="question-options">
+          {item.options.map((opt, i) => (
+            <button
+              key={i}
+              className="question-option-btn"
+              onClick={() => sendMessage(sessionId, opt.label)}
+            >
+              <span className="question-option-label">{opt.label}</span>
+              {opt.description && (
+                <span className="question-option-desc">{opt.description}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Display item dispatcher ---
 
 function DisplayItem({
   item,
   expanded,
   onToggle,
+  sessionId,
 }: {
   item: DisplayEntry;
   expanded: boolean;
   onToggle: () => void;
+  sessionId: string;
 }) {
   switch (item.kind) {
     case 'user_message':
@@ -113,6 +162,10 @@ function DisplayItem({
       return <SystemEntry entry={item.entry} />;
     case 'diff':
       return <DiffEntry entry={item.entry} />;
+    case 'plan_approval':
+      return <PlanApprovalEntry sessionId={sessionId} />;
+    case 'question':
+      return <QuestionEntry item={item} sessionId={sessionId} />;
     default:
       return null;
   }
@@ -124,6 +177,7 @@ interface RowProps {
   display: DisplayEntry[];
   isExpanded: (sourceStart: number) => boolean;
   toggleGroup: (sourceStart: number) => void;
+  sessionId: string;
 }
 
 function OutputRow({
@@ -132,6 +186,7 @@ function OutputRow({
   display,
   isExpanded,
   toggleGroup,
+  sessionId,
 }: {
   index: number;
   style: CSSProperties;
@@ -139,6 +194,7 @@ function OutputRow({
   display: DisplayEntry[];
   isExpanded: (sourceStart: number) => boolean;
   toggleGroup: (sourceStart: number) => void;
+  sessionId: string;
 }) {
   const item = display[index];
   const expanded = item.kind === 'tool_group' ? isExpanded(item.sourceStart) : false;
@@ -146,7 +202,7 @@ function OutputRow({
 
   return (
     <div style={style}>
-      <DisplayItem item={item} expanded={expanded} onToggle={onToggle} />
+      <DisplayItem item={item} expanded={expanded} onToggle={onToggle} sessionId={sessionId} />
     </div>
   );
 }
@@ -222,7 +278,7 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     return () => el.removeEventListener('scroll', handleNativeScroll);
   }, [listRef, handleNativeScroll]);
 
-  const rowProps: RowProps = { display, isExpanded, toggleGroup };
+  const rowProps: RowProps = { display, isExpanded, toggleGroup, sessionId };
 
   return (
     <div className="output-container">

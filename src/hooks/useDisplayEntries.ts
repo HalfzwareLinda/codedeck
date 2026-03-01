@@ -37,13 +37,27 @@ export interface DiffDisplay extends DisplayEntryBase {
   entry: OutputEntry;
 }
 
+export interface PlanApprovalDisplay extends DisplayEntryBase {
+  kind: 'plan_approval';
+  entry: OutputEntry;
+}
+
+export interface QuestionDisplay extends DisplayEntryBase {
+  kind: 'question';
+  entry: OutputEntry;
+  header?: string;
+  options?: Array<{ label: string; description?: string }>;
+}
+
 export type DisplayEntry =
   | UserMessageDisplay
   | AssistantMessageDisplay
   | ToolGroupDisplay
   | ErrorDisplay
   | SystemDisplay
-  | DiffDisplay;
+  | DiffDisplay
+  | PlanApprovalDisplay
+  | QuestionDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
 
@@ -107,6 +121,23 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
 
     // Non-tool entry — flush any pending tool group first
     flushToolGroup();
+
+    // Check for special interactive entries
+    const special = entry.metadata?.special as string | undefined;
+    if (special === 'plan_approval') {
+      display.push({ kind: 'plan_approval', entry, sourceStart: i });
+      continue;
+    }
+    if (special === 'ask_question') {
+      display.push({
+        kind: 'question',
+        entry,
+        header: entry.metadata?.header as string | undefined,
+        options: entry.metadata?.options as Array<{ label: string; description?: string }> | undefined,
+        sourceStart: i,
+      });
+      continue;
+    }
 
     switch (entry.entry_type) {
       case 'user_message':
