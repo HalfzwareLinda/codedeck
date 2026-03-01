@@ -351,7 +351,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   addMachine: (machine) => {
     set((state) => {
-      if (state.machines.some(m => m.pubkeyHex === machine.pubkeyHex)) return state;
+      const idx = state.machines.findIndex(m => m.pubkeyHex === machine.pubkeyHex);
+      if (idx >= 0) {
+        // Upsert: update hostname/relays for existing machine
+        const updated = [...state.machines];
+        updated[idx] = { ...updated[idx], hostname: machine.hostname, relays: machine.relays };
+        return { machines: updated };
+      }
       return { machines: [...state.machines, machine] };
     });
     connectToMachine(machine);
