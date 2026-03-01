@@ -6,6 +6,7 @@ import OutputStream from './OutputStream';
 import PermissionBar from './PermissionBar';
 import InputBar from './InputBar';
 import DmConversationView from './DmConversationView';
+import ErrorBoundary from './ErrorBoundary';
 
 export default function MainPanel({ isWide }: { isWide: boolean }) {
   const panelMode = useUIStore((s) => s.panelMode);
@@ -23,6 +24,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
       minWidth: 0,
       background: 'var(--bg-black)',
     }}>
+      <ErrorBoundary>
       {panelMode === 'dm' && activeConversationId ? (
         <DmConversationView conversationId={activeConversationId} isWide={isWide} />
       ) : panelMode === 'session' && activeSession ? (
@@ -49,6 +51,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
           </div>
         </>
       )}
+      </ErrorBoundary>
     </div>
   );
 }

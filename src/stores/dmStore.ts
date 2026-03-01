@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { DmConversation, DmMessage, NostrConfig } from '../types';
 import * as nostr from '../services/nostrService';
+import { npubEncode } from 'nostr-tools/nip19';
 import { persistGet, persistSet } from '../services/persistStore';
 
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol'];
@@ -209,6 +210,13 @@ export const useDmStore = create<DmStore>((set, get) => ({
 
 function truncatePubkey(pubkey: string): string {
   if (pubkey.length < 16) return pubkey;
+  // Convert hex pubkey to npub for display
+  if (/^[0-9a-f]{64}$/i.test(pubkey)) {
+    try {
+      const npub = npubEncode(pubkey);
+      return npub.slice(0, 10) + '...' + npub.slice(-4);
+    } catch { /* fall through to raw truncation */ }
+  }
   return pubkey.slice(0, 8) + '...' + pubkey.slice(-4);
 }
 

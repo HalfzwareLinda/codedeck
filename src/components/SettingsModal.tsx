@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
@@ -362,8 +362,49 @@ export default function SettingsModal() {
           </div>
         </div>
 
+        {/* Diagnostics */}
+        <DiagnosticsSection />
+
         <button className="modal-primary-btn" onClick={handleSave}>
           Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DiagnosticsSection() {
+  const [copied, setCopied] = useState(false);
+  const errorLog = (window as unknown as Record<string, unknown>).__CODEDECK_ERROR_LOG as string[] | undefined;
+  const dumpLog = (window as unknown as Record<string, unknown>).__CODEDECK_DUMP_LOG as (() => string) | undefined;
+  const count = errorLog?.length ?? 0;
+
+  const handleCopy = useCallback(async () => {
+    if (!dumpLog) return;
+    try {
+      await navigator.clipboard.writeText(dumpLog());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API may fail on some devices — fall back to prompt
+      const text = dumpLog();
+      prompt('Copy the error log below:', text);
+    }
+  }, [dumpLog]);
+
+  return (
+    <div className="modal-section">
+      <h3 className="modal-section-title">Diagnostics</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          {count === 0 ? 'No errors captured' : `${count} log ${count === 1 ? 'entry' : 'entries'}`}
+        </span>
+        <button
+          className="show-hide-btn"
+          onClick={handleCopy}
+          disabled={count === 0}
+        >
+          {copied ? 'Copied!' : 'Copy error log'}
         </button>
       </div>
     </div>
