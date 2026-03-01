@@ -31,7 +31,7 @@ const SESSION_LIST_EVENT_KIND = 30515;
 
 type SessionListHandler = (machine: string, sessions: RemoteSessionInfo[]) => void;
 type OutputHandler = (sessionId: string, entry: RemoteOutputEntry, seq: number) => void;
-type HistoryHandler = (sessionId: string, entries: Array<{ seq: number; entry: RemoteOutputEntry }>, totalEntries: number) => void;
+type HistoryHandler = (sessionId: string, entries: Array<{ seq: number; entry: RemoteOutputEntry }>, totalEntries: number, chunkIndex?: number, totalChunks?: number, requestId?: string) => void;
 type StatusHandler = (machine: string, status: 'connected' | 'disconnected' | 'connecting') => void;
 
 let pool: SimplePool | null = null;
@@ -235,7 +235,7 @@ function handleBridgeEvent(event: { pubkey: string; content: string }, _machine:
         onOutput?.(msg.sessionId, msg.entry, msg.seq);
         break;
       case 'history':
-        onHistory?.(msg.sessionId, msg.entries, msg.totalEntries);
+        onHistory?.(msg.sessionId, msg.entries, msg.totalEntries, msg.chunkIndex, msg.totalChunks, msg.requestId);
         break;
     }
   } catch (err) {

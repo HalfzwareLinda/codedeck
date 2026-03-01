@@ -61,6 +61,37 @@ const defaultConfig: AppConfig = {
   model: 'claude-sonnet-4-20250514',
 };
 
+// --- History chunk tracking (module-level, not in store state) ---
+
+const HISTORY_IDLE_TIMEOUT_MS = 10_000;
+
+const historyChunkTrackers = new Map<string, {
+  totalChunks: number;
+  receivedCount: number;
+  timeoutId: ReturnType<typeof setTimeout>;
+}>();
+
+function clearHistoryLoading(sessionId: string, set: (fn: (state: SessionStore) => Partial<SessionStore>) => void) {
+  set((state) => {
+    const { [sessionId]: _, ...rest } = state.historyLoading;
+    return { historyLoading: rest };
+  });
+}
+
+/** Sort outputs array by bridgeSeq so out-of-order chunks render correctly. */
+function sortOutputsBySeq(sessionId: string, set: (fn: (state: SessionStore) => Partial<SessionStore>) => void) {
+  set((state) => {
+    const outputs = state.outputs[sessionId];
+    if (!outputs || outputs.length === 0) return state;
+    const sorted = [...outputs].sort((a, b) => {
+      const seqA = (a.metadata?.bridgeSeq as number) ?? 0;
+      const seqB = (b.metadata?.bridgeSeq as number) ?? 0;
+      return seqA - seqB;
+    });
+    return { outputs: { ...state.outputs, [sessionId]: sorted } };
+  });
+}
+
 // --- Mock agent simulation ---
 function mockAgentResponse(sessionId: string, text: string, get: () => SessionStore) {
   const add = (entry: OutputEntry) => get().addOutput(sessionId, entry);
@@ -413,11 +444,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ),
         }));
       },
-      // onHistory
-      (sessionId, entries, _totalEntries) => {
-        // Bulk-add history entries (sorted by seq)
-        const sorted = [...entries].sort((a, b) => a.seq - b.seq);
-        for (const { entry, seq } of sorted) {
+      // onHistory (supports chunked responses from bridge)
+      (sessionId, entries, _totalEntries, chunkIndex, totalChunks, _requestId) => {
+        // Add entries immediately (progressive rendering)
+        for (const { entry, seq } of entries) {
           const mapped: OutputEntry = {
             entry_type: mapRemoteEntryType(entry.entryType),
             content: entry.content,
@@ -426,11 +456,39 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           };
           get().addOutput(sessionId, mapped);
         }
-        // Clear loading state
-        set((state) => {
-          const { [sessionId]: _, ...rest } = state.historyLoading;
-          return { historyLoading: rest };
-        });
+
+        // Backward compat: if no chunk fields, sort and clear (old bridge)
+        if (chunkIndex === undefined || totalChunks === undefined) {
+          sortOutputsBySeq(sessionId, set);
+          clearHistoryLoading(sessionId, set);
+          return;
+        }
+
+        // Chunked response: track progress, sort after each chunk
+        let tracker = historyChunkTrackers.get(sessionId);
+        if (!tracker) {
+          tracker = { totalChunks, receivedCount: 0, timeoutId: 0 as unknown as ReturnType<typeof setTimeout> };
+          historyChunkTrackers.set(sessionId, tracker);
+        }
+
+        tracker.receivedCount++;
+        sortOutputsBySeq(sessionId, set);
+
+        // Reset idle timeout on every chunk (adaptive)
+        clearTimeout(tracker.timeoutId);
+
+        if (tracker.receivedCount >= tracker.totalChunks) {
+          // All chunks received
+          historyChunkTrackers.delete(sessionId);
+          clearHistoryLoading(sessionId, set);
+        } else {
+          // Set idle timeout — clear loading if no more chunks arrive
+          tracker.timeoutId = setTimeout(() => {
+            console.warn(`[SessionStore] History timeout for ${sessionId}: received ${historyChunkTrackers.get(sessionId)?.receivedCount ?? 0}/${totalChunks} chunks`);
+            historyChunkTrackers.delete(sessionId);
+            clearHistoryLoading(sessionId, set);
+          }, HISTORY_IDLE_TIMEOUT_MS);
+        }
       },
     );
 
