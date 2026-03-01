@@ -25,9 +25,12 @@
   },
   "plugins": {
     "deep-link": {
-      "mobile": {
-        "schemes": ["codedeck"]
-      }
+      "mobile": [
+        {
+          "scheme": ["codedeck"],
+          "appLink": false
+        }
+      ]
     }
   },
   "bundle": {
