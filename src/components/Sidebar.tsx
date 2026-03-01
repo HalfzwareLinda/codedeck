@@ -70,7 +70,7 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
       <div className="session-card-info">
         <div className="session-card-name">{session.title || session.slug}</div>
         <div className="session-card-path">
-          <span className="session-card-path-text">{session.slug}</span>
+          <span className="session-card-path-text">{session.project}</span>
           <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
         </div>
       </div>
