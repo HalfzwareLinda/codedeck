@@ -1,4 +1,4 @@
-import { Session, TokenUsage } from '../types';
+import { Session, TokenUsage, RemoteSessionInfo } from '../types';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import '../styles/header.css';
@@ -8,7 +8,7 @@ function formatTokens(usage: TokenUsage): string {
   return `${fmt(usage.input_tokens)} in / ${fmt(usage.output_tokens)} out · $${usage.total_cost_usd.toFixed(2)}`;
 }
 
-export default function SessionHeader({ session, isWide }: { session?: Session; isWide: boolean }) {
+export default function SessionHeader({ session, remoteSession, isWide }: { session?: Session; remoteSession?: RemoteSessionInfo; isWide: boolean }) {
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const tokenUsage = useSessionStore((s) => session ? s.tokenUsage[session.id] : undefined);
@@ -54,6 +54,11 @@ export default function SessionHeader({ session, isWide }: { session?: Session; 
             <div className="header-tokens">{formatTokens(tokenUsage)}</div>
           )}
         </>
+      ) : remoteSession ? (
+        <div className="header-info">
+          <div className="header-title">{remoteSession.title || remoteSession.slug}</div>
+          <div className="header-subtitle">{remoteSession.project || remoteSession.cwd}</div>
+        </div>
       ) : (
         <div className="header-placeholder">CodeDeck</div>
       )}

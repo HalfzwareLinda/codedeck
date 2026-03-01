@@ -3,6 +3,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { parsePublicKey } from '../services/nostrService';
+import { relativeTime } from '../utils/relativeTime';
 import { Session, RemoteSessionInfo } from '../types';
 import DmTile from './DmTile';
 import '../styles/sidebar.css';
@@ -50,14 +51,28 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
+  const requestSessionHistory = useSessionStore((s) => s.requestSessionHistory);
+  const hasOutput = useSessionStore((s) => (s.outputs[session.id]?.length ?? 0) > 0);
 
   const classes = ['session-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
 
+  const handleClick = () => {
+    setActiveSession(session.id);
+    setPanelMode('session');
+    setSidebarOpen(false);
+    if (!hasOutput) {
+      requestSessionHistory(session.id);
+    }
+  };
+
   return (
-    <div className={classes} onClick={() => { setActiveSession(session.id); setPanelMode('session'); setSidebarOpen(false); }}>
+    <div className={classes} onClick={handleClick}>
       <div className="session-card-info">
-        <div className="session-card-name">{session.slug}</div>
-        <div className="session-card-path">{session.cwd}</div>
+        <div className="session-card-name">{session.title || session.slug}</div>
+        <div className="session-card-path">
+          {session.project || session.cwd}
+          <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
+        </div>
       </div>
     </div>
   );
@@ -145,7 +160,9 @@ export default function Sidebar() {
       <div className="sidebar-list">
         {/* Remote machines */}
         {machines.map((machine) => {
-          const machineSessions = remoteSessions[machine.pubkeyHex] || [];
+          const machineSessions = [...(remoteSessions[machine.pubkeyHex] || [])].sort(
+            (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime(),
+          );
           return (
             <div key={machine.pubkeyHex}>
               <div className="group-heading" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

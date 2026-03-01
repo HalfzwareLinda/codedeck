@@ -88,6 +88,7 @@ function OutputRow({
 
 export default function OutputStream({ sessionId }: { sessionId: string }) {
   const outputs = useSessionStore((s) => s.outputs[sessionId] ?? EMPTY_OUTPUTS);
+  const isLoading = useSessionStore((s) => !!s.historyLoading[sessionId]);
   const listRef = useListRef(null);
   const dynamicHeight = useDynamicRowHeight({ defaultRowHeight: DEFAULT_ROW_HEIGHT });
   const [autoScroll, setAutoScroll] = useState(true);
@@ -146,7 +147,9 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     <div className="output-container">
       {outputs.length === 0 ? (
         <div className="output-scroll">
-          <div className="output-empty">Send a message to start the agent</div>
+          <div className="output-empty">
+            {isLoading ? 'Loading session history...' : 'Send a message to start the agent'}
+          </div>
         </div>
       ) : (
         <List<RowProps>

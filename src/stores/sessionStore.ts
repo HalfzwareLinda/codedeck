@@ -22,6 +22,7 @@ interface SessionStore {
   // Remote bridge state
   machines: RemoteMachine[];
   remoteSessions: Record<string, RemoteSessionInfo[]>; // keyed by machine pubkeyHex
+  historyLoading: Record<string, boolean>;
 
   setActiveSession: (id: string) => void;
   addOutput: (sessionId: string, entry: OutputEntry) => void;
@@ -125,6 +126,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   tokenUsage: {},
   machines: [],
   remoteSessions: {},
+  historyLoading: {},
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
@@ -424,6 +426,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           };
           get().addOutput(sessionId, mapped);
         }
+        // Clear loading state
+        set((state) => {
+          const { [sessionId]: _, ...rest } = state.historyLoading;
+          return { historyLoading: rest };
+        });
       },
     );
 
@@ -458,10 +465,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   requestSessionHistory: async (sessionId) => {
     const machine = get().getMachineForSession(sessionId);
     if (!machine) { return; }
+    set((state) => ({
+      historyLoading: { ...state.historyLoading, [sessionId]: true },
+    }));
     try {
       await sendHistoryRequest(machine, sessionId);
     } catch (e) {
       console.error('[SessionStore] Failed to request history:', e);
+      set((state) => {
+        const { [sessionId]: _, ...rest } = state.historyLoading;
+        return { historyLoading: rest };
+      });
     }
   },
 }));

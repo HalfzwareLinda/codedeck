@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Session, AgentMode } from '../types';
+import { AgentMode } from '../types';
 import { useSessionStore } from '../stores/sessionStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import '../styles/input.css';
 
-export default function InputBar({ session }: { session: Session }) {
+export default function InputBar({ sessionId, mode }: { sessionId: string; mode?: AgentMode }) {
   const [text, setText] = useState('');
   const sendMessage = useSessionStore((s) => s.sendMessage);
   const setMode = useSessionStore((s) => s.setMode);
@@ -39,7 +39,7 @@ export default function InputBar({ session }: { session: Session }) {
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    sendMessage(session.id, trimmed);
+    sendMessage(sessionId, trimmed);
     setText('');
   };
 
@@ -59,12 +59,12 @@ export default function InputBar({ session }: { session: Session }) {
     }
   };
 
-  const modeButton = (mode: AgentMode, label: string) => {
-    const isActive = session.mode === mode;
+  const modeButton = (m: AgentMode, label: string) => {
+    const isActive = mode === m;
     return (
       <button
         className={`mode-btn ${isActive ? 'active' : 'inactive'}`}
-        onClick={() => setMode(session.id, mode)}
+        onClick={() => setMode(sessionId, m)}
       >
         {label}
       </button>
