@@ -223,8 +223,8 @@ export default function Sidebar() {
       <div className="dm-section">
         <div className="dm-section-header">
           <span className="dm-section-title">
-            DMs
             <span className={`dm-connection-dot ${connectionStatus}`} />
+            DMs
           </span>
           <button className="sidebar-add-btn dm-add-btn" onClick={() => setShowNewDm(!showNewDm)}>+</button>
         </div>
