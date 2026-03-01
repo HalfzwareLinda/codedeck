@@ -86,14 +86,32 @@ function buildToolSummary(entries: OutputEntry[]): string {
 }
 
 /**
+ * Collect tool_use_ids that have a matching tool_result response.
+ * Used to detect interactive entries (plan_approval, ask_question)
+ * that have already been answered — so we can skip rendering them.
+ */
+function collectAnsweredToolUseIds(outputs: OutputEntry[]): Set<string> {
+  const answered = new Set<string>();
+  for (const entry of outputs) {
+    if (entry.entry_type === 'tool_result') {
+      const id = entry.metadata?.tool_use_id as string | undefined;
+      if (id) answered.add(id);
+    }
+  }
+  return answered;
+}
+
+/**
  * Transforms a flat OutputEntry[] into grouped DisplayEntry[].
  * - Consecutive tool entries are merged into tool_group items
+ * - Answered interactive entries (plan_approval, ask_question) are omitted
  * - token_usage entries are handled upstream in the store (never reach here)
  */
 function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   const display: DisplayEntry[] = [];
   let currentToolGroup: OutputEntry[] = [];
   let toolGroupStart = 0;
+  const answeredIds = collectAnsweredToolUseIds(outputs);
 
   function flushToolGroup() {
     if (currentToolGroup.length > 0) {
@@ -122,8 +140,13 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     // Non-tool entry — flush any pending tool group first
     flushToolGroup();
 
-    // Check for special interactive entries
+    // Skip interactive entries that have already been answered
     const special = entry.metadata?.special as string | undefined;
+    const toolUseId = entry.metadata?.tool_use_id as string | undefined;
+    if ((special === 'plan_approval' || special === 'ask_question') && toolUseId && answeredIds.has(toolUseId)) {
+      continue;
+    }
+
     if (special === 'plan_approval') {
       display.push({ kind: 'plan_approval', entry, sourceStart: i });
       continue;
