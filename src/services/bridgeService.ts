@@ -23,8 +23,10 @@ import type {
   BridgeOutboundMessage,
 } from '../types';
 
-// Must match the bridge extension's event kinds
-const OUTPUT_EVENT_KIND = 29515;
+// Must match the bridge extension's event kinds.
+// Kind 4515 is in the regular range (1-9999) so relays store and forward reliably.
+// Previously 29515 which is ephemeral (20000-29999) — relays dropped these events.
+const OUTPUT_EVENT_KIND = 4515;
 const SESSION_LIST_EVENT_KIND = 30515;
 
 type SessionListHandler = (machine: string, sessions: RemoteSessionInfo[]) => void;
@@ -204,7 +206,14 @@ async function publishToMachine(machine: RemoteMachine, msg: BridgeOutboundMessa
       content: ciphertext,
     }, ownSecretKeyBytes);
 
-    await pool.publish(machine.relays, event);
+    // pool.publish returns Promise<string>[] — await each relay individually
+    const results = pool.publish(machine.relays, event);
+    const outcomes = await Promise.allSettled(results);
+    for (let i = 0; i < outcomes.length; i++) {
+      if (outcomes[i].status === 'rejected') {
+        console.warn(`[Bridge] Relay ${machine.relays[i]} rejected publish:`, (outcomes[i] as PromiseRejectedResult).reason);
+      }
+    }
   } catch (err) {
     console.error(`[Bridge] Failed to publish to ${machine.hostname}:`, err);
   }
