@@ -18,6 +18,7 @@ import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import android.util.Log
 import java.util.Locale
 
 @InvokeArg
@@ -69,6 +70,7 @@ class SpeechRecognizerPlugin(private val activity: Activity) : Plugin(activity) 
 
                 override fun onEndOfSpeech() {
                     isListening = false
+                    Log.d("SpeechPlugin", "onEndOfSpeech, isListening=$isListening")
                     activity.runOnUiThread {
                         val event = JSObject()
                         event.put("state", "processing")
@@ -78,6 +80,7 @@ class SpeechRecognizerPlugin(private val activity: Activity) : Plugin(activity) 
 
                 override fun onError(error: Int) {
                     isListening = false
+                    Log.d("SpeechPlugin", "onError: $error")
                     val errorMsg = when (error) {
                         SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
                         SpeechRecognizer.ERROR_CLIENT -> "Client side error"
@@ -105,6 +108,7 @@ class SpeechRecognizerPlugin(private val activity: Activity) : Plugin(activity) 
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     isListening = false
+                    Log.d("SpeechPlugin", "onResults: ${matches?.firstOrNull()?.take(50)}")
                     activity.runOnUiThread {
                         if (!matches.isNullOrEmpty()) {
                             val event = JSObject()
@@ -221,7 +225,8 @@ class SpeechRecognizerPlugin(private val activity: Activity) : Plugin(activity) 
 
     @Command
     fun stopListening(invoke: Invoke) {
-        if (speechRecognizer != null && isListening) {
+        Log.d("SpeechPlugin", "stopListening called, isListening=$isListening, recognizer=${speechRecognizer != null}")
+        if (speechRecognizer != null) {
             activity.runOnUiThread {
                 speechRecognizer?.stopListening()
                 isListening = false

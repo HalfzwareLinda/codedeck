@@ -36,6 +36,7 @@ export function useSpeechRecognition(
   const cleanupRef = useRef<Array<() => void>>([]);
   const finalDeliveredRef = useRef(false);
   const lastInterimRef = useRef('');
+  const stopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check availability on mount (Tauri only)
   useEffect(() => {
@@ -76,11 +77,16 @@ export function useSpeechRecognition(
           (data: RecognitionResult) => {
             if (!mounted) return;
             if (data.isFinal) {
+              console.debug('[STT] Final result received:', data.text?.substring(0, 50));
               finalDeliveredRef.current = true;
               lastInterimRef.current = '';
               onFinalResultRef.current(data.text);
               setInterimTranscript('');
               setIsListening(false);
+              if (stopTimeoutRef.current) {
+                clearTimeout(stopTimeoutRef.current);
+                stopTimeoutRef.current = null;
+              }
             } else {
               setInterimTranscript(data.text);
             }
@@ -93,6 +99,7 @@ export function useSpeechRecognition(
           'error',
           (data: RecognitionError) => {
             if (!mounted) return;
+            console.debug('[STT] Error received:', data.code, data.error);
             // ERROR_CLIENT (5) and ERROR_NO_MATCH (7) commonly fire after
             // programmatic stopListening() — not real errors, but the
             // definitive signal that onResults() won't come
@@ -108,6 +115,10 @@ export function useSpeechRecognition(
             }
             setIsListening(false);
             setInterimTranscript('');
+            if (stopTimeoutRef.current) {
+              clearTimeout(stopTimeoutRef.current);
+              stopTimeoutRef.current = null;
+            }
           }
         );
         cleanupRef.current.push(() => errorListener.unregister());
@@ -134,6 +145,7 @@ export function useSpeechRecognition(
       mounted = false;
       cleanupRef.current.forEach(fn => fn());
       cleanupRef.current = [];
+      if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
     };
   }, [available]);
 
@@ -210,18 +222,33 @@ export function useSpeechRecognition(
       return;
     }
 
-    // Store interim transcript for the error listener fallback
+    // Snapshot interim text before clearing — used as fallback
+    // if the native side never delivers a final result.
     lastInterimRef.current = interimTranscript;
     finalDeliveredRef.current = false;
 
     try {
       await invoke('plugin:speech-recognizer|stop_listening');
+      console.debug('[STT] stopListening invoked, lastInterim:', lastInterimRef.current?.substring(0, 50));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
 
     setIsListening(false);
-    setInterimTranscript('');
+
+    // Safety net: if no final result arrives within 2 seconds,
+    // deliver the last interim text so it is never lost.
+    if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
+    stopTimeoutRef.current = setTimeout(() => {
+      if (!finalDeliveredRef.current && lastInterimRef.current) {
+        console.debug('[STT] Timeout fallback delivering:', lastInterimRef.current?.substring(0, 50));
+        finalDeliveredRef.current = true;
+        onFinalResultRef.current(lastInterimRef.current);
+        lastInterimRef.current = '';
+      }
+      setInterimTranscript('');
+      stopTimeoutRef.current = null;
+    }, 2000);
   }, [interimTranscript]);
 
   return {
