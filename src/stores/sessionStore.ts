@@ -23,6 +23,7 @@ interface SessionStore {
   // Remote bridge state
   machines: RemoteMachine[];
   remoteSessions: Record<string, RemoteSessionInfo[]>; // keyed by machine pubkeyHex
+  remoteSessionModes: Record<string, AgentMode>; // keyed by sessionId
   historyLoading: Record<string, boolean>;
 
   setActiveSession: (id: string) => void;
@@ -159,6 +160,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   tokenUsage: {},
   machines: [],
   remoteSessions: {},
+  remoteSessionModes: {},
   historyLoading: {},
 
   setActiveSession: (id) => set({ activeSessionId: id }),
@@ -361,13 +363,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   setMode: async (sessionId, mode) => {
-    set((state) => ({
-      sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, mode } : s),
-    }));
-
     // Check if this is a remote session
     const machine = get().getMachineForSession(sessionId);
     if (machine) {
+      // Update remote session mode optimistically (phone-side tracking)
+      set((state) => ({
+        remoteSessionModes: { ...state.remoteSessionModes, [sessionId]: mode },
+      }));
       try {
         await sendRemoteModeChange(machine, sessionId, mode);
       } catch (e) {
@@ -376,6 +378,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return;
     }
 
+    // Local session
+    set((state) => ({
+      sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, mode } : s),
+    }));
     if (isTauri()) await api.setMode(sessionId, mode);
   },
 
@@ -422,10 +428,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   removeMachine: (pubkeyHex) => {
     disconnectFromMachine(pubkeyHex);
     set((state) => {
+      const removedSessions = state.remoteSessions[pubkeyHex] ?? [];
+      const removedIds = new Set(removedSessions.map(s => s.id));
       const { [pubkeyHex]: _, ...restSessions } = state.remoteSessions;
+      // Clean up mode tracking for removed sessions
+      const cleanedModes = { ...state.remoteSessionModes };
+      for (const id of removedIds) { delete cleanedModes[id]; }
       return {
         machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
         remoteSessions: restSessions,
+        remoteSessionModes: cleanedModes,
       };
     });
     persistSet('codedeck_machines', get().machines);

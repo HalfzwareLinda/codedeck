@@ -16,6 +16,8 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const activeConversationId = useDmStore((s) => s.activeConversationId);
   const remoteSessions = useSessionStore((s) => s.remoteSessions);
+  const remoteSessionModes = useSessionStore((s) => s.remoteSessionModes);
+  const defaultMode = useSessionStore((s) => s.config.default_mode);
 
   // Find remote session info if not a local session
   let remoteSession: RemoteSessionInfo | undefined;
@@ -25,6 +27,11 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
       if (remoteSession) break;
     }
   }
+
+  // Tracked mode for remote session, defaulting to config's default_mode
+  const remoteMode = remoteSession
+    ? (remoteSessionModes[remoteSession.id] ?? defaultMode)
+    : undefined;
 
   return (
     <div style={{
@@ -51,7 +58,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
         <>
           <SessionHeader remoteSession={remoteSession} isWide={isWide} />
           <OutputStream sessionId={remoteSession.id} />
-          <InputBar sessionId={remoteSession.id} />
+          <InputBar sessionId={remoteSession.id} mode={remoteMode} />
         </>
       ) : (
         <>
