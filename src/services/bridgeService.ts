@@ -174,6 +174,17 @@ export async function sendRemoteModeChange(
 }
 
 /**
+ * Request a new Claude Code terminal session on a remote machine.
+ * The bridge will open a Claude Code terminal in the VSCode workspace.
+ */
+export async function sendCreateSessionRequest(
+  machine: RemoteMachine,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'create-session' };
+  await publishToMachine(machine, msg);
+}
+
+/**
  * Request history for a session from a remote machine.
  * The bridge will respond with a history message containing past entries.
  */

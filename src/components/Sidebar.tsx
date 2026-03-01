@@ -167,7 +167,14 @@ export default function Sidebar() {
             <div key={machine.pubkeyHex}>
               <div className="group-heading" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className={`dm-connection-dot ${machine.connected ? 'connected' : 'disconnected'}`} />
-                {machine.hostname}
+                <span style={{ flex: 1 }}>{machine.hostname}</span>
+                {machine.connected && (
+                  <button
+                    className="sidebar-add-btn"
+                    style={{ fontSize: 14, padding: '0 4px', lineHeight: 1 }}
+                    onClick={(e) => { e.stopPropagation(); setNewSessionOpen(true, machine); }}
+                  >+</button>
+                )}
               </div>
               {machineSessions.map((session) => (
                 <RemoteSessionCard

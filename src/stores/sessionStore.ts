@@ -9,6 +9,7 @@ import {
   sendRemoteInput,
   sendRemoteModeChange,
   sendHistoryRequest,
+  sendCreateSessionRequest,
 } from '../services/bridgeService';
 import { persistGet, persistSet } from '../services/persistStore';
 
@@ -47,6 +48,7 @@ interface SessionStore {
   isRemoteSession: (sessionId: string) => boolean;
   getMachineForSession: (sessionId: string) => RemoteMachine | null;
   requestSessionHistory: (sessionId: string) => Promise<void>;
+  createRemoteSession: (machine: RemoteMachine) => Promise<void>;
 }
 
 const defaultConfig: AppConfig = {
@@ -554,6 +556,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
     }
     return null;
+  },
+
+  createRemoteSession: async (machine) => {
+    try {
+      await sendCreateSessionRequest(machine);
+    } catch (e) {
+      console.error('[SessionStore] Failed to create remote session:', e);
+    }
   },
 
   requestSessionHistory: async (sessionId) => {

@@ -78,6 +78,21 @@
   color: var(--text-muted);
 }
 
+.modal-info {
+  font-size: 14px;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.modal-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 .modal-section {
   margin-bottom: 24px;
 }
