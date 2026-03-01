@@ -81,6 +81,18 @@ function clearHistoryLoading(sessionId: string, set: (fn: (state: SessionStore) 
   });
 }
 
+/** Binary search for insertion index by bridgeSeq. */
+function findInsertIndex(entries: OutputEntry[], seq: number): number {
+  let lo = 0, hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const midSeq = (entries[mid].metadata?.bridgeSeq as number) ?? 0;
+    if (midSeq < seq) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 /** Sort outputs array by bridgeSeq so out-of-order chunks render correctly. */
 function sortOutputsBySeq(sessionId: string, set: (fn: (state: SessionStore) => Partial<SessionStore>) => void) {
   set((state) => {
@@ -206,10 +218,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return state;
     }
 
-    // Normal entry — cap at 5000
-    const updated = existing.length >= 5000
-      ? [...existing.slice(-4999), entry]
-      : [...existing, entry];
+    // Normal entry — insert at correct position by bridgeSeq (handles
+    // Nostr relay delivering stored events newest-first on reconnect)
+    const seq = entry.metadata?.bridgeSeq as number | undefined;
+    let updated: OutputEntry[];
+
+    if (seq !== undefined && seq !== 0) {
+      const insertIdx = findInsertIndex(existing, seq);
+      updated = [...existing.slice(0, insertIdx), entry, ...existing.slice(insertIdx)];
+    } else {
+      updated = [...existing, entry];
+    }
+
+    if (updated.length > 5000) {
+      updated = updated.slice(-5000);
+    }
     return { outputs: { ...state.outputs, [sessionId]: updated } };
   }),
 

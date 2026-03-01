@@ -13,3 +13,7 @@
 - [ ] **Phone subscription should use `since` filter** — `bridgeService.ts` — On reconnect, the relay dumps all stored kind 29515 events. Should use `since: lastSeenTimestamp` in the subscription filter to avoid re-fetching events the phone already has. More impactful than NIP-40 expiration for performance.
 
 - [ ] **App.tsx deep link errors silently swallowed** — `App.tsx:74-79` — `getCurrent()` and `onOpenUrl()` promise rejections are caught with empty `.catch(() => {})`. If deep link init fails, pairing via QR code won't work with no feedback.
+
+## Future Protocol Improvement
+
+- [ ] **Consider ephemeral event kind for real-time output** — Currently kind 4515 (regular/stored) is used for output events, which means relays store every output event and replay them all on reconnect (newest-first, requiring sorted insertion on the phone). A cleaner design: use an ephemeral kind (20000-29999) for the real-time stream so relays don't store it, and rely solely on the existing `history-request` pattern for catch-up. This would eliminate redundant replay, reduce relay storage, and remove the need for sorted insertion. Trade-off: breaking change to both sides of the protocol.
