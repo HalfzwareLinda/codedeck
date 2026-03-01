@@ -200,6 +200,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
     set((state) => ({
       conversations: [...state.conversations, conv],
       activeConversationId: convId,
+      messages: state.messages[convId] ? state.messages : { ...state.messages, [convId]: [] },
     }));
     persist({ conversations: get().conversations, messages: get().messages, nostrConfig: get().nostrConfig });
     get().resolveProfileName(recipientPubkey);

@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { useUIStore } from '../stores/uiStore';
 
 interface Props {
   children: ReactNode;
@@ -38,7 +39,10 @@ export default class ErrorBoundary extends Component<Props, State> {
             {this.state.error?.message || 'Unknown error'}
           </div>
           <button
-            onClick={() => this.setState({ hasError: false, error: null })}
+            onClick={() => {
+              useUIStore.getState().setPanelMode('session');
+              this.setState({ hasError: false, error: null });
+            }}
             style={{
               marginTop: 8,
               padding: '6px 16px',

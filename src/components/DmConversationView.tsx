@@ -3,8 +3,11 @@ import { useDmStore } from '../stores/dmStore';
 import { useUIStore } from '../stores/uiStore';
 import { getPubkeyHex } from '../services/nostrService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import type { DmMessage } from '../types';
 import '../styles/dm.css';
 import '../styles/header.css';
+
+const EMPTY_MESSAGES: DmMessage[] = [];
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -21,7 +24,7 @@ function hexToBytes(hex: string): Uint8Array {
 
 export default function DmConversationView({ conversationId, isWide }: { conversationId: string; isWide: boolean }) {
   const conversation = useDmStore((s) => s.conversations.find(c => c.id === conversationId));
-  const messages = useDmStore((s) => s.messages[conversationId] || []);
+  const messages = useDmStore((s) => s.messages[conversationId] ?? EMPTY_MESSAGES);
   const sendDm = useDmStore((s) => s.sendDm);
   const nostrConfig = useDmStore((s) => s.nostrConfig);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
