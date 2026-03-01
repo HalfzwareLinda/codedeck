@@ -83,11 +83,30 @@ export default function SettingsModal() {
       .split('\n')
       .map(r => r.trim())
       .filter(r => r.startsWith('wss://') || r.startsWith('ws://'));
+    const effectiveRelays = relays.length > 0 ? relays : ['wss://relay.damus.io', 'wss://nos.lol'];
 
     updateNostrConfig({
       private_key_hex: privateKeyHex,
-      relays: relays.length > 0 ? relays : ['wss://relay.damus.io', 'wss://nos.lol'],
+      relays: effectiveRelays,
     });
+
+    // Auto-add pending machine if the npub field has a value
+    if (newMachineNpub.trim()) {
+      const pubkeyHex = parsePublicKey(newMachineNpub);
+      if (pubkeyHex) {
+        const machine: RemoteMachine = {
+          hostname: newMachineName || 'Remote',
+          npub: newMachineNpub.startsWith('npub1') ? newMachineNpub : nip19.npubEncode(pubkeyHex),
+          pubkeyHex,
+          relays: effectiveRelays,
+          connected: false,
+        };
+        addMachine(machine);
+      } else {
+        setMachineError('Invalid npub — machine not added');
+        return;
+      }
+    }
 
     setSettingsOpen(false);
   };

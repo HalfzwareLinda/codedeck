@@ -191,7 +191,8 @@ function processGiftWrap(event: Parameters<typeof unwrapEvent>[0], recipientSk: 
       timestamp: new Date((rumor.created_at || 0) * 1000).toISOString(),
       status: 'delivered',
     };
-  } catch {
+  } catch (err) {
+    console.warn('[Nostr] Failed to process gift wrap event:', err);
     return null;
   }
 }

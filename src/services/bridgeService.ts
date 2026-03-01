@@ -15,6 +15,7 @@ import { getPublicKey } from 'nostr-tools/pure';
 import { encrypt, decrypt, getConversationKey } from 'nostr-tools/nip44';
 import { finalizeEvent } from 'nostr-tools/pure';
 import type {
+  AgentMode,
   RemoteMachine,
   RemoteSessionInfo,
   RemoteOutputEntry,
@@ -46,8 +47,16 @@ let ownPubkeyHex: string | null = null;
  * Initialize the bridge service with the phone's Nostr identity.
  */
 export function initBridge(privateKeyHex: string): void {
-  ownSecretKeyBytes = hexToBytes(privateKeyHex);
-  ownPubkeyHex = getPublicKey(ownSecretKeyBytes);
+  const newKeyBytes = hexToBytes(privateKeyHex);
+  const newPubkey = getPublicKey(newKeyBytes);
+
+  // If re-initializing with a different key, tear down old subscriptions
+  if (ownPubkeyHex && ownPubkeyHex !== newPubkey) {
+    disconnectAll();
+  }
+
+  ownSecretKeyBytes = newKeyBytes;
+  ownPubkeyHex = newPubkey;
 
   if (!pool) {
     pool = new SimplePool();
@@ -156,7 +165,7 @@ export async function sendRemotePermissionResponse(
 export async function sendRemoteModeChange(
   machine: RemoteMachine,
   sessionId: string,
-  mode: string,
+  mode: AgentMode,
 ): Promise<void> {
   const msg: BridgeOutboundMessage = { type: 'mode', sessionId, mode };
   await publishToMachine(machine, msg);
@@ -222,6 +231,7 @@ function handleBridgeEvent(event: { pubkey: string; content: string }, _machine:
     }
   } catch (err) {
     console.error('[Bridge] Failed to decrypt/parse event:', err);
+    onStatus?.(_machine.hostname, 'disconnected');
   }
 }
 

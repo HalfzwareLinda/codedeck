@@ -21,6 +21,10 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 - Full agent loop: file read/write/edit, bash exec, grep, directory listing
 - Persistent sessions and configuration
 - Black & white OLED-friendly design
+- **Remote bridge**: Control Claude Code sessions on your laptop from your phone via Nostr relays
+- **Deep link pairing**: Scan a QR code from the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension to pair instantly (`codedeck://pair?npub=...&relays=...&machine=...`)
+- **Nostr DMs**: NIP-17 encrypted direct messaging between Nostr identities
+- **Speech-to-text**: Voice dictation for hands-free input
 
 ## Development
 
@@ -59,13 +63,23 @@ cargo tauri android init
 cargo tauri android build --apk --target aarch64
 ```
 
+## Remote Bridge
+
+Codedeck can control Claude Code sessions running on a remote machine via the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension. Communication uses NIP-44 encrypted Nostr events.
+
+1. Install the Codedeck Bridge extension in VSCode
+2. Run the **Codedeck: Pair Phone** command — a QR code appears
+3. Scan the QR code with the Codedeck app (or enter the npub manually in Settings)
+4. Your remote Claude Code sessions appear in the sidebar
+
 ## Architecture
 
 ```
 codedeck/
 ├── src/                    # React frontend
 │   ├── components/         # UI components
-│   ├── stores/             # Zustand state management
+│   ├── services/           # bridgeService (Nostr relay), nostrService (DMs), persistStore
+│   ├── stores/             # Zustand state management (sessionStore, dmStore, uiStore)
 │   ├── hooks/              # Custom React hooks
 │   └── styles/             # Global CSS
 ├── src-tauri/              # Rust backend
@@ -76,6 +90,10 @@ codedeck/
 │       └── config.rs       # App configuration
 └── dev.sh                  # Development script
 ```
+
+## Related
+
+- [Codedeck Bridge VSCode Extension](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) — Bridges Claude Code sessions to this app over Nostr
 
 ## License
 

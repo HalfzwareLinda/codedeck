@@ -7,6 +7,7 @@ import {
   connectToMachine,
   disconnectFromMachine,
   sendRemoteInput,
+  sendRemoteModeChange,
   sendHistoryRequest,
 } from '../services/bridgeService';
 import { persistGet, persistSet } from '../services/persistStore';
@@ -308,6 +309,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, mode } : s),
     }));
+
+    // Check if this is a remote session
+    const machine = get().getMachineForSession(sessionId);
+    if (machine) {
+      try {
+        await sendRemoteModeChange(machine, sessionId, mode);
+      } catch (e) {
+        console.error('[SessionStore] Failed to send remote mode change:', e);
+      }
+      return;
+    }
+
     if (isTauri()) await api.setMode(sessionId, mode);
   },
 
@@ -347,10 +360,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   removeMachine: (pubkeyHex) => {
     disconnectFromMachine(pubkeyHex);
-    set((state) => ({
-      machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
-      remoteSessions: { ...state.remoteSessions, [pubkeyHex]: undefined } as Record<string, RemoteSessionInfo[]>,
-    }));
+    set((state) => {
+      const { [pubkeyHex]: _, ...restSessions } = state.remoteSessions;
+      return {
+        machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
+        remoteSessions: restSessions,
+      };
+    });
     persistSet('codedeck_machines', get().machines);
   },
 

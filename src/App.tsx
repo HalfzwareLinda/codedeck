@@ -3,11 +3,46 @@ import { useUIStore } from './stores/uiStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { parsePublicKey } from './services/nostrService';
+import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
+import * as nip19 from 'nostr-tools/nip19';
+import type { RemoteMachine } from './types';
 import Sidebar from './components/Sidebar';
 import MainPanel from './components/MainPanel';
 import SettingsModal from './components/SettingsModal';
 import NewSessionModal from './components/NewSessionModal';
 import './styles/global.css';
+
+function handleDeepLink(url: string): void {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'codedeck:') return;
+
+    const npub = parsed.searchParams.get('npub');
+    const relaysParam = parsed.searchParams.get('relays');
+    const machineName = parsed.searchParams.get('machine') || 'Remote';
+
+    if (!npub) return;
+    const pubkeyHex = parsePublicKey(npub);
+    if (!pubkeyHex) return;
+
+    const relays = relaysParam
+      ? relaysParam.split(',').filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
+      : ['wss://relay.damus.io', 'wss://nos.lol'];
+
+    const machine: RemoteMachine = {
+      hostname: machineName,
+      npub: npub.startsWith('npub1') ? npub : nip19.npubEncode(pubkeyHex),
+      pubkeyHex,
+      relays,
+      connected: false,
+    };
+
+    useSessionStore.getState().addMachine(machine);
+  } catch {
+    // Malformed URL — ignore silently
+  }
+}
 
 export default function App() {
   const isWide = useMediaQuery('(min-width: 700px)');
@@ -34,6 +69,14 @@ export default function App() {
         initBridgeService(nostrConfig.private_key_hex);
       }
       connectDms();
+
+      // Handle deep links (codedeck://pair?npub=...&relays=...&machine=...)
+      getCurrent().then(urls => {
+        if (urls) urls.forEach(handleDeepLink);
+      }).catch(() => {});
+      onOpenUrl(urls => {
+        urls.forEach(handleDeepLink);
+      }).catch(() => {});
     });
   }, [loadSessions, loadConfig, initEventListeners, loadPersistedDms, connectDms, initBridgeService]);
 
