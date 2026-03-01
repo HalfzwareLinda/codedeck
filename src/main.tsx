@@ -35,6 +35,16 @@ console.error = (...args: unknown[]) => {
   origConsoleError.apply(console, args);
 };
 
+// Capture console.warn so Nostr diagnostics appear in error log
+const origConsoleWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  pushLog(`console.warn: ${args.map(a => {
+    if (a instanceof Error) return a.message + (a.stack ? '\n' + a.stack : '');
+    return String(a);
+  }).join(' ')}`);
+  origConsoleWarn.apply(console, args);
+};
+
 // Expose globally so it can be read from DevTools or a diagnostics screen
 (window as unknown as Record<string, unknown>).__CODEDECK_ERROR_LOG = errorLog;
 (window as unknown as Record<string, unknown>).__CODEDECK_DUMP_LOG = () => errorLog.join('\n');

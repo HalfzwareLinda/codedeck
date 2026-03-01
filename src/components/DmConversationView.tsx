@@ -124,9 +124,12 @@ export default function DmConversationView({ conversationId, isWide }: { convers
 
       <div className="dm-messages">
         {messages.map((msg) => (
-          <div key={msg.id} className={`dm-bubble ${isSent(msg) ? 'sent' : 'received'}`}>
+          <div key={msg.id} className={`dm-bubble ${isSent(msg) ? 'sent' : 'received'}${msg.status === 'failed' ? ' failed' : ''}`}>
             <div className="dm-bubble-content">{msg.content}</div>
-            <div className="dm-bubble-time">{formatTime(msg.timestamp)}</div>
+            <div className="dm-bubble-time">
+              {formatTime(msg.timestamp)}
+              {msg.status === 'failed' && <span className="dm-send-failed"> — send failed</span>}
+            </div>
           </div>
         ))}
         <div ref={messagesEndRef} />

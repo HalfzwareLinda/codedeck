@@ -76,6 +76,22 @@ export default function App() {
     });
   }, []);
 
+  // Reconnect DM subscription when app returns to foreground
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const dmState = useDmStore.getState();
+      if (!dmState.nostrConfig.private_key_hex) return;
+
+      if (document.hidden) {
+        dmState.disconnect();
+      } else {
+        dmState.connect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
   // Track keyboard visibility via Visual Viewport API (fallback for Android WebView)
   useEffect(() => {
     const vv = window.visualViewport;

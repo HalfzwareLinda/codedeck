@@ -219,6 +219,16 @@
   text-align: right;
 }
 
+.dm-bubble.failed {
+  opacity: 0.6;
+  border: 1px solid #ef4444;
+}
+
+.dm-send-failed {
+  color: #ef4444;
+  font-weight: 600;
+}
+
 .dm-input-bar {
   display: flex;
   gap: 8px;

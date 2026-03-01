@@ -1,12 +1,16 @@
 import { getPublicKey } from 'nostr-tools/pure';
 import { SimplePool } from 'nostr-tools/pool';
 import * as nip19 from 'nostr-tools/nip19';
-import { wrapEvent, unwrapEvent } from 'nostr-tools/nip59';
+import { createRumor, createSeal, createWrap, unwrapEvent } from 'nostr-tools/nip59';
 import type { DmMessage } from '../types';
 
 let pool: SimplePool | null = null;
 let subscription: ReturnType<SimplePool['subscribeMany']> | null = null;
 let ownPubkey: string | null = null;
+let ownSkBytes: Uint8Array | null = null;
+
+/** Set of rumor IDs we sent ourselves — skip these from relay delivery. */
+const sentRumorIds = new Set<string>();
 
 type MessageHandler = (msg: DmMessage) => void;
 let onMessage: MessageHandler | null = null;
@@ -74,27 +78,62 @@ export function setHandlers(msgHandler: MessageHandler, statusHandler: StatusHan
   onStatus = statusHandler;
 }
 
-/** Connect to relays and subscribe to incoming gift wraps (kind 1059). */
-export function connect(privateKeyHex: string, relays: string[]): void {
+/**
+ * Connect to relays and subscribe to incoming gift wraps (kind 1059).
+ * Uses enableReconnect for automatic reconnection with exponential backoff.
+ * Uses `since` filter to avoid reprocessing messages already persisted locally.
+ */
+export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?: number): void {
   disconnect();
 
   const sk = hexToBytes(privateKeyHex);
+  ownSkBytes = sk;
   ownPubkey = getPublicKey(sk);
 
+  console.log(`[Nostr] Connecting to relays:`, relays, `pubkey: ${ownPubkey.slice(0, 8)}...`);
   onStatus?.('connecting');
 
-  pool = new SimplePool();
+  // Enable auto-reconnect with exponential backoff (10s → 60s)
+  pool = new SimplePool({ enableReconnect: true });
+
+  const filter: Record<string, unknown> = {
+    kinds: [1059],
+    '#p': [ownPubkey],
+  };
+
+  // Only fetch events after last known message to avoid replaying history
+  if (sinceTimestamp && sinceTimestamp > 0) {
+    filter.since = sinceTimestamp;
+    console.log(`[Nostr] Subscribing with since=${sinceTimestamp} (${new Date(sinceTimestamp * 1000).toISOString()})`);
+  }
 
   subscription = pool.subscribeMany(
     relays,
-    { kinds: [1059], '#p': [ownPubkey] },
+    filter as Parameters<SimplePool['subscribeMany']>[1],
     {
       onevent(event) {
-        const msg = processGiftWrap(event, sk);
-        if (msg) onMessage?.(msg);
+        if (!ownSkBytes) return;
+        console.log(`[Nostr] Received gift wrap: ${event.id.slice(0, 12)}...`);
+        const msg = processGiftWrap(event, ownSkBytes);
+        if (msg) {
+          // Skip self-wraps for messages we sent — the local addMessage already covers these
+          if (sentRumorIds.has(msg.id)) {
+            console.log(`[Nostr] Skipping self-wrap for sent message ${msg.id.slice(0, 12)}...`);
+            return;
+          }
+          console.log(`[Nostr] Processed DM from ${msg.sender_pubkey.slice(0, 8)}... (${msg.content.length} chars)`);
+          onMessage?.(msg);
+        }
       },
       oneose() {
+        console.log('[Nostr] Subscription EOSE — connected');
         onStatus?.('connected');
+      },
+      onclose(reasons) {
+        console.warn('[Nostr] Subscription closed:', reasons);
+        // Pool will auto-reconnect if enableReconnect is true;
+        // update status so the UI shows a reconnecting indicator
+        onStatus?.('connecting');
       },
     },
   );
@@ -111,6 +150,7 @@ export function disconnect(): void {
     pool = null;
   }
   ownPubkey = null;
+  ownSkBytes = null;
   onStatus?.('disconnected');
 }
 
@@ -118,9 +158,10 @@ export function disconnect(): void {
  * Send a NIP-17 DM.
  *
  * 1. Build kind 14 rumor template
- * 2. wrapEvent() for recipient (seal + gift wrap)
- * 3. wrapEvent() for self (so we can see our own sent messages)
- * 4. Publish both via pool
+ * 2. createRumor() once (deterministic ID for dedup)
+ * 3. createSeal() + createWrap() for recipient
+ * 4. createSeal() + createWrap() for self
+ * 5. Publish both via pool, properly awaiting per-relay promises
  */
 export async function sendDirectMessage(
   senderSkHex: string,
@@ -129,7 +170,7 @@ export async function sendDirectMessage(
   relays: string[],
 ): Promise<DmMessage> {
   if (!pool) {
-    pool = new SimplePool();
+    pool = new SimplePool({ enableReconnect: true });
   }
 
   const senderSk = hexToBytes(senderSkHex);
@@ -141,27 +182,46 @@ export async function sendDirectMessage(
     tags: [['p', recipientPubkey]],
   };
 
-  // Wrap for recipient
-  const wrapForRecipient = wrapEvent(rumorTemplate, senderSk, recipientPubkey);
+  // Create rumor ONCE so the rumor.id is consistent for dedup
+  const rumor = createRumor(rumorTemplate, senderSk);
 
-  // Wrap for self (so sender sees their own message)
-  const wrapForSelf = wrapEvent(rumorTemplate, senderSk, senderPubkey);
+  // Track this rumor ID so we skip the self-wrap when it arrives from relay
+  sentRumorIds.add(rumor.id);
 
-  // Publish both
-  await Promise.all([
-    pool.publish(relays, wrapForRecipient),
-    pool.publish(relays, wrapForSelf),
+  // Seal + wrap for recipient
+  const sealForRecipient = createSeal(rumor, senderSk, recipientPubkey);
+  const wrapForRecipient = createWrap(sealForRecipient, recipientPubkey);
+
+  // Seal + wrap for self (so sender sees their own message on other devices)
+  const sealForSelf = createSeal(rumor, senderSk, senderPubkey);
+  const wrapForSelf = createWrap(sealForSelf, senderPubkey);
+
+  // pool.publish() returns Promise<string>[] (one per relay) — spread to await each
+  const publishResults = await Promise.allSettled([
+    ...pool.publish(relays, wrapForRecipient),
+    ...pool.publish(relays, wrapForSelf),
   ]);
+
+  const succeeded = publishResults.filter(r => r.status === 'fulfilled').length;
+  const failed = publishResults.filter(r => r.status === 'rejected').length;
+  console.log(`[Nostr] Published DM: ${succeeded} relays OK, ${failed} failed`);
+  if (failed > 0) {
+    publishResults.forEach((r) => {
+      if (r.status === 'rejected') {
+        console.warn(`[Nostr] Relay publish failed:`, r.reason);
+      }
+    });
+  }
 
   const convId = conversationId(senderPubkey, recipientPubkey);
 
   return {
-    id: wrapForRecipient.id,
+    id: rumor.id,
     conversation_id: convId,
     sender_pubkey: senderPubkey,
     content,
     timestamp: new Date().toISOString(),
-    status: 'sent',
+    status: succeeded > 0 ? 'sent' : 'failed',
   };
 }
 

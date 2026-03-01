@@ -8,6 +8,9 @@ const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol'];
 const MAX_MESSAGES_PER_CONVERSATION = 500;
 const STORAGE_KEY = 'codedeck_dm';
 
+/** Window (seconds) within which same-content messages from the same sender are considered duplicates. */
+const CONTENT_DEDUP_WINDOW_S = 60;
+
 interface DmStore {
   conversations: DmConversation[];
   messages: Record<string, DmMessage[]>;
@@ -48,6 +51,23 @@ function persist(state: { conversations: DmConversation[]; messages: Record<stri
   });
 }
 
+/**
+ * Compute the latest message timestamp across all conversations (as unix seconds).
+ * Used as `since` filter when subscribing to relays so we don't replay old messages.
+ * Subtracts a 30-second grace window to catch events near the boundary.
+ */
+function getLatestMessageTimestamp(messages: Record<string, DmMessage[]>): number | undefined {
+  let latest = 0;
+  for (const convMsgs of Object.values(messages)) {
+    for (const msg of convMsgs) {
+      const ts = Math.floor(new Date(msg.timestamp).getTime() / 1000);
+      if (ts > latest) latest = ts;
+    }
+  }
+  // 30-second grace window to catch boundary events
+  return latest > 0 ? latest - 30 : undefined;
+}
+
 export const useDmStore = create<DmStore>((set, get) => ({
   conversations: [],
   messages: {},
@@ -65,9 +85,23 @@ export const useDmStore = create<DmStore>((set, get) => ({
     let newConvPubkey: string | null = null;
 
     set((state) => {
-      // Deduplicate by message id
       const existing = state.messages[msg.conversation_id] || [];
+
+      // Primary dedup: exact message ID match
       if (existing.some(m => m.id === msg.id)) return state;
+
+      // Fallback dedup: same sender + same content within time window.
+      // Catches duplicates from other NIP-17 clients that generate different rumor IDs.
+      const msgTs = Math.floor(new Date(msg.timestamp).getTime() / 1000);
+      const isDuplicate = existing.some(m =>
+        m.sender_pubkey === msg.sender_pubkey &&
+        m.content === msg.content &&
+        Math.abs(Math.floor(new Date(m.timestamp).getTime() / 1000) - msgTs) < CONTENT_DEDUP_WINDOW_S,
+      );
+      if (isDuplicate) {
+        console.log(`[DM] Content-dedup: skipping duplicate "${msg.content.slice(0, 30)}..."`);
+        return state;
+      }
 
       // Cap messages
       const updated = existing.length >= MAX_MESSAGES_PER_CONVERSATION
@@ -146,7 +180,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
   setConnectionStatus: (status) => set({ connectionStatus: status }),
 
   connect: () => {
-    const { nostrConfig } = get();
+    const { nostrConfig, messages } = get();
     if (!nostrConfig.private_key_hex) return;
 
     nostr.setHandlers(
@@ -154,7 +188,8 @@ export const useDmStore = create<DmStore>((set, get) => ({
       (status) => get().setConnectionStatus(status),
     );
 
-    nostr.connect(nostrConfig.private_key_hex, nostrConfig.relays);
+    const sinceTimestamp = getLatestMessageTimestamp(messages);
+    nostr.connect(nostrConfig.private_key_hex, nostrConfig.relays, sinceTimestamp);
   },
 
   disconnect: () => {
