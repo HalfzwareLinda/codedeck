@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import '../styles/modal.css';
@@ -23,11 +23,43 @@ export default function NewSessionModal() {
     const machineSessions = remoteSessions[machine.pubkeyHex] || [];
     const projects = [...new Set(machineSessions.map((s) => s.project).filter(Boolean))];
 
+    // Track session IDs we knew about before creating, so we can detect the new one
+    const prevSessionIdsRef = useRef<Set<string> | null>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Subscribe to store changes while loading — navigate when new session appears
+    useEffect(() => {
+      if (!loading || !prevSessionIdsRef.current) return;
+
+      const prevIds = prevSessionIdsRef.current;
+      const unsub = useSessionStore.subscribe((state) => {
+        const currentSessions = state.remoteSessions[machine.pubkeyHex] || [];
+        const newSession = currentSessions.find(s => !prevIds.has(s.id));
+        if (newSession) {
+          state.setActiveSession(newSession.id);
+          useUIStore.getState().setPanelMode('session');
+          setLoading(false);
+          close();
+        }
+      });
+
+      // Timeout: stop waiting after 10s
+      timeoutRef.current = setTimeout(() => {
+        unsub();
+        setLoading(false);
+        close();
+      }, 10000);
+
+      return () => {
+        unsub();
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      };
+    }, [loading, machine.pubkeyHex, close]);
+
     const handleRemoteCreate = async () => {
+      prevSessionIdsRef.current = new Set(machineSessions.map(s => s.id));
       setLoading(true);
       await createRemoteSession(machine);
-      setLoading(false);
-      close();
     };
 
     return (
