@@ -69,6 +69,7 @@ export default function App() {
         initBridgeService(nostrConfig.private_key_hex);
       }
       connectDms();
+      useDmStore.getState().resolveAllProfiles();
 
       // Handle deep links (codedeck://pair?npub=...&relays=...&machine=...)
       getCurrent().then(urls => {

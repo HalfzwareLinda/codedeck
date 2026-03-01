@@ -14,6 +14,7 @@ interface DmStore {
   activeConversationId: string | null;
   nostrConfig: NostrConfig;
   connectionStatus: 'disconnected' | 'connecting' | 'connected';
+  profileCache: Record<string, { name: string; fetchedAt: number }>;
 
   setActiveConversation: (id: string | null) => void;
   addMessage: (msg: DmMessage) => void;
@@ -26,19 +27,24 @@ interface DmStore {
   sendDm: (recipientPubkey: string, content: string) => Promise<void>;
   startConversation: (recipientPubkey: string, displayName?: string) => void;
   loadPersisted: () => Promise<void>;
+  resolveProfileName: (pubkeyHex: string) => Promise<void>;
+  resolveAllProfiles: () => void;
 }
 
 interface PersistedDmData {
   conversations: DmConversation[];
   messages: Record<string, DmMessage[]>;
   nostrConfig: NostrConfig;
+  profileCache?: Record<string, { name: string; fetchedAt: number }>;
 }
 
 function persist(state: { conversations: DmConversation[]; messages: Record<string, DmMessage[]>; nostrConfig: NostrConfig }) {
+  const profileCache = useDmStore.getState().profileCache;
   persistSet(STORAGE_KEY, {
     conversations: state.conversations,
     messages: state.messages,
     nostrConfig: state.nostrConfig,
+    profileCache,
   });
 }
 
@@ -48,60 +54,72 @@ export const useDmStore = create<DmStore>((set, get) => ({
   activeConversationId: null,
   nostrConfig: { private_key_hex: null, relays: DEFAULT_RELAYS },
   connectionStatus: 'disconnected',
+  profileCache: {},
 
   setActiveConversation: (id) => {
     set({ activeConversationId: id });
     if (id) get().markConversationRead(id);
   },
 
-  addMessage: (msg) => set((state) => {
-    // Deduplicate by message id
-    const existing = state.messages[msg.conversation_id] || [];
-    if (existing.some(m => m.id === msg.id)) return state;
+  addMessage: (msg) => {
+    let newConvPubkey: string | null = null;
 
-    // Cap messages
-    const updated = existing.length >= MAX_MESSAGES_PER_CONVERSATION
-      ? [...existing.slice(-(MAX_MESSAGES_PER_CONVERSATION - 1)), msg]
-      : [...existing, msg];
+    set((state) => {
+      // Deduplicate by message id
+      const existing = state.messages[msg.conversation_id] || [];
+      if (existing.some(m => m.id === msg.id)) return state;
 
-    const newMessages = { ...state.messages, [msg.conversation_id]: updated };
+      // Cap messages
+      const updated = existing.length >= MAX_MESSAGES_PER_CONVERSATION
+        ? [...existing.slice(-(MAX_MESSAGES_PER_CONVERSATION - 1)), msg]
+        : [...existing, msg];
 
-    // Upsert conversation
-    const convIndex = state.conversations.findIndex(c => c.id === msg.conversation_id);
-    let newConversations: DmConversation[];
+      const newMessages = { ...state.messages, [msg.conversation_id]: updated };
 
-    if (convIndex >= 0) {
-      newConversations = state.conversations.map((c, i) =>
-        i === convIndex
-          ? {
-              ...c,
-              last_message_at: msg.timestamp,
-              unread_count: state.activeConversationId === c.id ? 0 : c.unread_count + 1,
-            }
-          : c,
-      );
-    } else {
-      // Auto-create conversation from incoming message
-      const ownPubkey = state.nostrConfig.private_key_hex
-        ? nostr.getPubkeyHex(parseHexToBytes(state.nostrConfig.private_key_hex))
-        : '';
-      const otherPubkey = msg.sender_pubkey === ownPubkey
-        ? msg.conversation_id.split(':').find(p => p !== ownPubkey) || msg.sender_pubkey
-        : msg.sender_pubkey;
+      // Upsert conversation
+      const convIndex = state.conversations.findIndex(c => c.id === msg.conversation_id);
+      let newConversations: DmConversation[];
 
-      newConversations = [...state.conversations, {
-        id: msg.conversation_id,
-        participants: [ownPubkey, otherPubkey].filter(Boolean),
-        display_name: truncatePubkey(otherPubkey),
-        last_message_at: msg.timestamp,
-        unread_count: state.activeConversationId === msg.conversation_id ? 0 : 1,
-      }];
+      if (convIndex >= 0) {
+        newConversations = state.conversations.map((c, i) =>
+          i === convIndex
+            ? {
+                ...c,
+                last_message_at: msg.timestamp,
+                unread_count: state.activeConversationId === c.id ? 0 : c.unread_count + 1,
+              }
+            : c,
+        );
+      } else {
+        // Auto-create conversation from incoming message
+        const ownPubkey = state.nostrConfig.private_key_hex
+          ? nostr.getPubkeyHex(parseHexToBytes(state.nostrConfig.private_key_hex))
+          : '';
+        const otherPubkey = msg.sender_pubkey === ownPubkey
+          ? msg.conversation_id.split(':').find(p => p !== ownPubkey) || msg.sender_pubkey
+          : msg.sender_pubkey;
+
+        newConvPubkey = otherPubkey;
+
+        newConversations = [...state.conversations, {
+          id: msg.conversation_id,
+          participants: [ownPubkey, otherPubkey].filter(Boolean),
+          display_name: truncatePubkey(otherPubkey),
+          last_message_at: msg.timestamp,
+          unread_count: state.activeConversationId === msg.conversation_id ? 0 : 1,
+        }];
+      }
+
+      const newState = { conversations: newConversations, messages: newMessages };
+      persist({ ...newState, nostrConfig: state.nostrConfig });
+      return newState;
+    });
+
+    // Resolve profile name for newly auto-created conversation
+    if (newConvPubkey) {
+      get().resolveProfileName(newConvPubkey);
     }
-
-    const newState = { conversations: newConversations, messages: newMessages };
-    persist({ ...newState, nostrConfig: state.nostrConfig });
-    return newState;
-  }),
+  },
 
   markConversationRead: (conversationId) => set((state) => {
     const newConversations = state.conversations.map(c =>
@@ -184,6 +202,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
       activeConversationId: convId,
     }));
     persist({ conversations: get().conversations, messages: get().messages, nostrConfig: get().nostrConfig });
+    get().resolveProfileName(recipientPubkey);
   },
 
   loadPersisted: async () => {
@@ -201,12 +220,71 @@ export const useDmStore = create<DmStore>((set, get) => ({
         conversations,
         messages: data.messages || {},
         nostrConfig: data.nostrConfig || { private_key_hex: null, relays: DEFAULT_RELAYS },
+        profileCache: data.profileCache || {},
       });
     } catch { /* corrupt data — start fresh */ }
+  },
+
+  resolveProfileName: async (pubkeyHex) => {
+    const { profileCache, nostrConfig } = get();
+
+    // Skip if already cached and fresh (< 24 hours)
+    const cached = profileCache[pubkeyHex];
+    const CACHE_TTL = 24 * 60 * 60 * 1000;
+    if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
+      updateConversationNames(pubkeyHex, cached.name, get, set);
+      return;
+    }
+
+    const name = await nostr.fetchProfileName(pubkeyHex, nostrConfig.relays);
+    if (!name) return;
+
+    set((state) => ({
+      profileCache: { ...state.profileCache, [pubkeyHex]: { name, fetchedAt: Date.now() } },
+    }));
+
+    updateConversationNames(pubkeyHex, name, get, set);
+  },
+
+  resolveAllProfiles: () => {
+    const { conversations, nostrConfig } = get();
+    if (!nostrConfig.private_key_hex) return;
+    const ownPubkey = nostr.getPubkeyHex(parseHexToBytes(nostrConfig.private_key_hex));
+    for (const conv of conversations) {
+      const other = conv.participants.find(p => p !== ownPubkey);
+      if (other) get().resolveProfileName(other);
+    }
   },
 }));
 
 // --- Helpers ---
+
+function updateConversationNames(
+  pubkeyHex: string,
+  name: string,
+  get: () => DmStore,
+  set: (partial: Partial<DmStore> | ((s: DmStore) => Partial<DmStore>)) => void,
+) {
+  const { conversations, messages, nostrConfig } = get();
+  const ownPubkey = nostrConfig.private_key_hex
+    ? nostr.getPubkeyHex(parseHexToBytes(nostrConfig.private_key_hex))
+    : '';
+
+  let changed = false;
+  const updated = conversations.map((c) => {
+    const otherPubkey = c.participants.find((p) => p !== ownPubkey);
+    if (otherPubkey === pubkeyHex && c.display_name !== name) {
+      changed = true;
+      return { ...c, display_name: name };
+    }
+    return c;
+  });
+
+  if (changed) {
+    set({ conversations: updated });
+    persist({ conversations: updated, messages, nostrConfig });
+  }
+}
 
 function truncatePubkey(pubkey: string): string {
   if (pubkey.length < 16) return pubkey;

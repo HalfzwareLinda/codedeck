@@ -197,6 +197,26 @@ function processGiftWrap(event: Parameters<typeof unwrapEvent>[0], recipientSk: 
   }
 }
 
+/**
+ * Fetch NIP-01 kind 0 profile metadata for a pubkey.
+ * Returns the profile name (display_name or name) or null if not found.
+ */
+export async function fetchProfileName(
+  pubkeyHex: string,
+  relays: string[],
+): Promise<string | null> {
+  const p = pool ?? new SimplePool();
+  try {
+    const event = await p.get(relays, { kinds: [0], authors: [pubkeyHex] });
+    if (!event?.content) return null;
+    const meta = JSON.parse(event.content);
+    return meta.display_name || meta.name || null;
+  } catch (err) {
+    console.warn('[Nostr] Failed to fetch profile for', pubkeyHex, err);
+    return null;
+  }
+}
+
 // --- Helpers ---
 
 function hexToBytes(hex: string): Uint8Array {
