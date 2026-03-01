@@ -50,26 +50,21 @@ export default function App() {
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const newSessionOpen = useUIStore((s) => s.newSessionOpen);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
-  const initEventListeners = useSessionStore((s) => s.initEventListeners);
-  const loadSessions = useSessionStore((s) => s.loadSessions);
-  const loadConfig = useSessionStore((s) => s.loadConfig);
-  const initBridgeService = useSessionStore((s) => s.initBridgeService);
-  const loadPersistedDms = useDmStore((s) => s.loadPersisted);
-  const connectDms = useDmStore((s) => s.connect);
-
   useEffect(() => {
-    loadSessions();
-    loadConfig();
-    initEventListeners();
+    const sessionActions = useSessionStore.getState();
+    sessionActions.loadSessions();
+    sessionActions.loadConfig();
+    sessionActions.initEventListeners();
 
     // Load persisted DMs first (includes Nostr private key), then init bridge
-    loadPersistedDms().then(() => {
-      const nostrConfig = useDmStore.getState().nostrConfig;
+    useDmStore.getState().loadPersisted().then(() => {
+      const dmState = useDmStore.getState();
+      const nostrConfig = dmState.nostrConfig;
       if (nostrConfig.private_key_hex) {
-        initBridgeService(nostrConfig.private_key_hex);
+        useSessionStore.getState().initBridgeService(nostrConfig.private_key_hex);
       }
-      connectDms();
-      useDmStore.getState().resolveAllProfiles();
+      dmState.connect();
+      dmState.resolveAllProfiles();
 
       // Handle deep links (codedeck://pair?npub=...&relays=...&machine=...)
       getCurrent().then(urls => {
@@ -79,7 +74,7 @@ export default function App() {
         urls.forEach(handleDeepLink);
       }).catch(() => {});
     });
-  }, [loadSessions, loadConfig, initEventListeners, loadPersistedDms, connectDms, initBridgeService]);
+  }, []);
 
   // Track keyboard visibility via Visual Viewport API (fallback for Android WebView)
   useEffect(() => {

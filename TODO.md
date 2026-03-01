@@ -10,4 +10,6 @@
 
 - [ ] **SettingsModal API key test has no timeout** — `SettingsModal.tsx:43-60` — `handleTestApiKey()` calls `api.testApiKey()` with no timeout mechanism. If the network hangs, the UI shows "Testing..." indefinitely.
 
+- [ ] **Phone subscription should use `since` filter** — `bridgeService.ts` — On reconnect, the relay dumps all stored kind 29515 events. Should use `since: lastSeenTimestamp` in the subscription filter to avoid re-fetching events the phone already has. More impactful than NIP-40 expiration for performance.
+
 - [ ] **App.tsx deep link errors silently swallowed** — `App.tsx:74-79` — `getCurrent()` and `onOpenUrl()` promise rejections are caught with empty `.catch(() => {})`. If deep link init fails, pairing via QR code won't work with no feedback.
