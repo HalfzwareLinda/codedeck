@@ -182,6 +182,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return state;
     }
 
+    // Accumulate token usage directly in the store
+    if (entry.entry_type === 'token_usage') {
+      const match = entry.content.match(/Tokens:\s*(\d+)\s*in\s*\/\s*(\d+)\s*out/);
+      if (match) {
+        const prev = state.tokenUsage[sessionId] || { input_tokens: 0, output_tokens: 0, total_cost_usd: 0 };
+        return {
+          outputs: { ...state.outputs, [sessionId]: existing },
+          tokenUsage: {
+            ...state.tokenUsage,
+            [sessionId]: {
+              input_tokens: prev.input_tokens + parseInt(match[1], 10),
+              output_tokens: prev.output_tokens + parseInt(match[2], 10),
+              total_cost_usd: prev.total_cost_usd,
+            },
+          },
+        };
+      }
+      return state;
+    }
+
     // Normal entry — cap at 5000
     const updated = existing.length >= 5000
       ? [...existing.slice(-4999), entry]
@@ -244,8 +264,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   sendMessage: async (sessionId, text) => {
     get().addOutput(sessionId, {
-      entry_type: 'message',
-      content: `**You:** ${text}`,
+      entry_type: 'user_message',
+      content: text,
       timestamp: new Date().toISOString(),
     });
 
@@ -428,8 +448,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // onOutput
       (sessionId, entry, _seq) => {
         // Map remote output entry to Codedeck's OutputEntry format
+        let entryType = mapRemoteEntryType(entry.entryType);
+        // Split text entries by role
+        if (entryType === 'message' && entry.metadata?.role === 'user') {
+          entryType = 'user_message';
+        }
+        // Tag token usage system entries
+        if (entryType === 'system' && entry.content.startsWith('Tokens:')) {
+          entryType = 'token_usage';
+        }
         const mapped: OutputEntry = {
-          entry_type: mapRemoteEntryType(entry.entryType),
+          entry_type: entryType,
           content: entry.content,
           timestamp: entry.timestamp,
           metadata: { ...entry.metadata, bridgeSeq: _seq },
@@ -448,8 +477,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       (sessionId, entries, _totalEntries, chunkIndex, totalChunks, _requestId) => {
         // Add entries immediately (progressive rendering)
         for (const { entry, seq } of entries) {
+          let entryType = mapRemoteEntryType(entry.entryType);
+          if (entryType === 'message' && entry.metadata?.role === 'user') {
+            entryType = 'user_message';
+          }
+          if (entryType === 'system' && entry.content.startsWith('Tokens:')) {
+            entryType = 'token_usage';
+          }
           const mapped: OutputEntry = {
-            entry_type: mapRemoteEntryType(entry.entryType),
+            entry_type: entryType,
             content: entry.content,
             timestamp: entry.timestamp,
             metadata: { ...entry.metadata, bridgeSeq: seq },
@@ -541,8 +577,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 function mapRemoteEntryType(entryType: RemoteOutputEntry['entryType']): OutputEntry['entry_type'] {
   switch (entryType) {
     case 'text': return 'message';
-    case 'tool_use': return 'action';
-    case 'tool_result': return 'action';
+    case 'tool_use': return 'tool_use';
+    case 'tool_result': return 'tool_result';
     case 'system': return 'system';
     case 'error': return 'error';
     case 'progress': return 'system';

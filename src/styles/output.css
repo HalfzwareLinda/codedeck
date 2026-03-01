@@ -14,19 +14,123 @@
   padding: 8px 16px;
 }
 
-.output-action {
-  font-family: var(--font-mono);
-  font-size: 13px;
+/* --- User message bubble (right-aligned, chat-style) --- */
+
+.user-message-row {
+  display: flex;
+  justify-content: flex-end;
   padding: 4px 0;
 }
 
-.output-action-type {
-  color: var(--text-secondary);
+.user-message-bubble {
+  max-width: 85%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px 16px 4px 16px;
+  padding: 8px 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
 }
 
-.output-action-detail {
+.user-message-bubble p { margin: 0; }
+
+/* --- Assistant message (prominent, full-width) --- */
+
+.assistant-message {
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 8px 0;
   color: var(--text-primary);
+  overflow-wrap: break-word;
 }
+
+/* react-markdown overrides for assistant messages */
+.assistant-message p { margin: 0 0 8px; }
+.assistant-message p:last-child { margin: 0; }
+.assistant-message code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-card);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.assistant-message pre {
+  background: var(--bg-card);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.assistant-message pre code {
+  background: none;
+  padding: 0;
+}
+.assistant-message strong { color: var(--text-primary); }
+.assistant-message a { color: var(--text-secondary); text-decoration: underline; }
+
+/* --- Collapsible tool group --- */
+
+.tool-group {
+  margin: 2px 0;
+}
+
+.tool-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.tool-group-header:active {
+  background: var(--bg-card);
+}
+
+.tool-group-chevron {
+  display: inline-block;
+  font-size: 11px;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tool-group-chevron-open {
+  transform: rotate(90deg);
+}
+
+.tool-group-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-group-body {
+  border-left: 2px solid var(--border-subtle);
+  margin-left: 12px;
+  padding-left: 10px;
+  padding-bottom: 4px;
+}
+
+.tool-group-item {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+/* --- Diff (unchanged) --- */
 
 .output-diff {
   background: var(--bg-card);
@@ -58,37 +162,7 @@
   white-space: pre;
 }
 
-.output-message {
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 4px 0;
-  color: var(--text-primary);
-  overflow-wrap: break-word;
-}
-
-/* react-markdown overrides */
-.output-message p { margin: 0 0 8px; }
-.output-message p:last-child { margin: 0; }
-.output-message code {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  background: var(--bg-card);
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-.output-message pre {
-  background: var(--bg-card);
-  padding: 12px;
-  border-radius: 4px;
-  overflow-x: auto;
-  margin: 8px 0;
-}
-.output-message pre code {
-  background: none;
-  padding: 0;
-}
-.output-message strong { color: var(--text-primary); }
-.output-message a { color: var(--text-secondary); text-decoration: underline; }
+/* --- Error (unchanged) --- */
 
 .output-error {
   font-size: 13px;
@@ -97,6 +171,8 @@
   padding: 4px 0;
 }
 
+/* --- System (unchanged) --- */
+
 .output-system {
   font-size: 12px;
   color: var(--text-muted);
@@ -104,12 +180,16 @@
   padding: 4px 0;
 }
 
+/* --- Empty state --- */
+
 .output-empty {
   color: var(--text-muted);
   font-size: 13px;
   text-align: center;
   padding-top: 40px;
 }
+
+/* --- Scroll pill --- */
 
 .output-new-pill {
   position: absolute;
@@ -123,4 +203,12 @@
   font-size: 13px;
   cursor: pointer;
   border: 1px solid var(--border-medium);
+}
+
+/* --- Token usage in header --- */
+
+.token-usage {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
 }

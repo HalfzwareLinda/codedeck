@@ -5,13 +5,17 @@ import '../styles/header.css';
 
 function formatTokens(usage: TokenUsage): string {
   const fmt = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
-  return `${fmt(usage.input_tokens)} in / ${fmt(usage.output_tokens)} out · $${usage.total_cost_usd.toFixed(2)}`;
+  if (usage.total_cost_usd > 0) {
+    return `${fmt(usage.input_tokens)} in / ${fmt(usage.output_tokens)} out · $${usage.total_cost_usd.toFixed(2)}`;
+  }
+  return `${fmt(usage.input_tokens)} in / ${fmt(usage.output_tokens)} out`;
 }
 
 export default function SessionHeader({ session, remoteSession, isWide }: { session?: Session; remoteSession?: RemoteSessionInfo; isWide: boolean }) {
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
-  const tokenUsage = useSessionStore((s) => session ? s.tokenUsage[session.id] : undefined);
+  const sessionId = session?.id ?? remoteSession?.id;
+  const tokenUsage = useSessionStore((s) => sessionId ? s.tokenUsage[sessionId] : undefined);
   const cancelAgent = useSessionStore((s) => s.cancelAgent);
 
   const isRunning = session?.state === 'running' || session?.state === 'waiting_permission';
@@ -55,10 +59,15 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
           )}
         </>
       ) : remoteSession ? (
-        <div className="header-info">
-          <div className="header-title">{remoteSession.title || remoteSession.slug}</div>
-          <div className="header-subtitle">{remoteSession.project || remoteSession.cwd}</div>
-        </div>
+        <>
+          <div className="header-info">
+            <div className="header-title">{remoteSession.title || remoteSession.slug}</div>
+            <div className="header-subtitle">{remoteSession.project || remoteSession.cwd}</div>
+          </div>
+          {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
+            <div className="header-tokens">{formatTokens(tokenUsage)}</div>
+          )}
+        </>
       ) : (
         <div className="header-placeholder">CodeDeck</div>
       )}
