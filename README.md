@@ -6,7 +6,7 @@ Designed for the Google Pixel 9 Pro Fold inner display (landscape), but works on
 
 ## Download
 
-**[Download CodeDeck v0.4.2 for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/download/v0.4.2/CodeDeck-v0.4.2-android.apk)** — 20 MB, arm64
+**[Download CodeDeck v0.5.2 for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/download/v0.5.2/CodeDeck-v0.5.2-android.apk)** — ~20 MB, arm64
 
 Requirements: Android 7.0+, ARM64 device (Pixel 9 Pro Fold, etc.), Anthropic API key.
 
@@ -17,12 +17,17 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 - Multiple concurrent Claude Code agent sessions
 - Sidebar navigation with grouped sessions
 - PLAN mode (manual approval) and AUTO mode (auto-execute)
+- **Plan approval cards**: Approve or reject Claude's plans directly from your phone
+- **Question cards**: Answer Claude's multi-choice questions inline
+- **GFM markdown rendering**: GitHub-flavored markdown with syntax highlighting
 - Inline permission handling for tool calls
 - Full agent loop: file read/write/edit, bash exec, grep, directory listing
 - Persistent sessions and configuration
+- Chat-style session view with collapsible tool groups
 - Black & white OLED-friendly design
 - **Remote bridge**: Control Claude Code sessions on your laptop from your phone via Nostr relays
 - **Deep link pairing**: Scan a QR code from the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension to pair instantly (`codedeck://pair?npub=...&relays=...&machine=...`)
+- **Create remote sessions**: Start new Claude Code sessions from the phone
 - **Nostr DMs**: NIP-17 encrypted direct messaging between Nostr identities
 - **Speech-to-text**: Voice dictation for hands-free input
 
