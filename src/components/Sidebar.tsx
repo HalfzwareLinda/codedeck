@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
@@ -8,6 +8,9 @@ import { Session, RemoteSessionInfo } from '../types';
 import DmTile from './DmTile';
 import '../styles/sidebar.css';
 import '../styles/dm.css';
+
+const PULL_THRESHOLD = 60;
+const MAX_PULL = 100;
 
 function StatusDot({ state }: { state: Session['state'] }) {
   if (state === 'idle' || state === 'completed' || state === 'error') return null;
@@ -131,7 +134,82 @@ export default function Sidebar() {
   const connectionStatus = useDmStore((s) => s.connectionStatus);
   const machines = useSessionStore((s) => s.machines);
   const remoteSessions = useSessionStore((s) => s.remoteSessions);
+  const refreshing = useSessionStore((s) => s.refreshing);
+  const requestRefreshSessions = useSessionStore((s) => s.requestRefreshSessions);
   const [showNewDm, setShowNewDm] = useState(false);
+
+  // --- Pull-to-refresh (ref-based to avoid per-frame re-renders) ---
+  const listRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+  const pullRef = useRef(0);
+  const isPullingRef = useRef(false);
+  // Only used for the refreshing spinner (low-frequency state)
+  const [triggered, setTriggered] = useState(false);
+
+  const hasRemoteMachines = machines.length > 0;
+
+  const updateIndicator = useCallback((distance: number) => {
+    const el = indicatorRef.current;
+    if (!el) return;
+    if (distance > 0) {
+      el.style.height = `${distance}px`;
+      el.style.display = 'flex';
+      const icon = el.querySelector('.pull-indicator-icon') as HTMLElement | null;
+      const text = el.querySelector('.pull-indicator-text') as HTMLElement | null;
+      if (icon) {
+        icon.textContent = distance >= PULL_THRESHOLD ? '\u2191' : '\u2193';
+        icon.className = `pull-indicator-icon${distance >= PULL_THRESHOLD ? ' ready' : ''}`;
+      }
+      if (text) {
+        text.textContent = distance >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh';
+      }
+    } else {
+      el.style.height = '0px';
+      el.style.display = 'none';
+    }
+  }, []);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!hasRemoteMachines) return;
+    const el = listRef.current;
+    // scrollTop <= 0 handles both 0 and negative values (iOS bounce)
+    if (el && el.scrollTop <= 0) {
+      touchStartY.current = e.touches[0].clientY;
+      isPullingRef.current = true;
+    }
+  }, [hasRemoteMachines]);
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPullingRef.current) return;
+    const el = listRef.current;
+    if (!el || el.scrollTop > 0) {
+      isPullingRef.current = false;
+      pullRef.current = 0;
+      updateIndicator(0);
+      return;
+    }
+    const dy = Math.max(0, e.touches[0].clientY - touchStartY.current);
+    const dampened = Math.min(MAX_PULL, Math.sqrt(dy) * 5);
+    pullRef.current = dampened;
+    updateIndicator(dampened);
+  }, [updateIndicator]);
+
+  const onTouchEnd = useCallback(() => {
+    if (!isPullingRef.current) return;
+    if (pullRef.current >= PULL_THRESHOLD && !refreshing) {
+      requestRefreshSessions();
+      setTriggered(true);
+    }
+    pullRef.current = 0;
+    isPullingRef.current = false;
+    updateIndicator(0);
+  }, [refreshing, requestRefreshSessions, updateIndicator]);
+
+  // Reset triggered state when refreshing completes
+  if (triggered && !refreshing) {
+    setTriggered(false);
+  }
 
   // Group local sessions
   const groups: Record<string, Session[]> = {};
@@ -146,7 +224,6 @@ export default function Sidebar() {
   );
 
   const hasLocalSessions = sessions.length > 0;
-  const hasRemoteMachines = machines.length > 0;
 
   return (
     <div className="sidebar">
@@ -157,7 +234,26 @@ export default function Sidebar() {
       </div>
 
       {/* Sessions list — fills remaining space above DMs */}
-      <div className="sidebar-list">
+      <div
+        className="sidebar-list"
+        ref={listRef}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Pull-to-refresh indicator (height driven by ref, not state) */}
+        {hasRemoteMachines && (
+          <div
+            ref={indicatorRef}
+            className={`pull-indicator${refreshing ? ' spinning' : ''}`}
+            style={{ height: refreshing ? 32 : 0, display: refreshing ? 'flex' : 'none' }}
+          >
+            <span className={`pull-indicator-icon${refreshing ? ' spinning' : ''}`}>
+              {refreshing ? '...' : '\u2193'}
+            </span>
+            <span className="pull-indicator-text">{refreshing ? 'Refreshing...' : 'Pull to refresh'}</span>
+          </div>
+        )}
         {/* Remote machines */}
         {machines.map((machine) => {
           const machineSessions = [...(remoteSessions[machine.pubkeyHex] || [])].sort(

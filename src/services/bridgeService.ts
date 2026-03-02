@@ -185,6 +185,16 @@ export async function sendCreateSessionRequest(
 }
 
 /**
+ * Request the bridge to re-scan and re-publish its session list.
+ */
+export async function sendRefreshRequest(
+  machine: RemoteMachine,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'refresh-sessions' };
+  await publishToMachine(machine, msg);
+}
+
+/**
  * Request history for a session from a remote machine.
  * The bridge will respond with a history message containing past entries.
  */

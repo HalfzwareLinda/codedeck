@@ -116,4 +116,5 @@ export type BridgeOutboundMessage =
   | { type: 'permission-res'; sessionId: string; requestId: string; allow: boolean }
   | { type: 'mode'; sessionId: string; mode: AgentMode }
   | { type: 'history-request'; sessionId: string; afterSeq?: number }
-  | { type: 'create-session' };
+  | { type: 'create-session' }
+  | { type: 'refresh-sessions' };

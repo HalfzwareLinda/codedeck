@@ -10,6 +10,7 @@ import {
   sendRemoteModeChange,
   sendHistoryRequest,
   sendCreateSessionRequest,
+  sendRefreshRequest,
 } from '../services/bridgeService';
 import { persistGet, persistSet } from '../services/persistStore';
 
@@ -25,6 +26,7 @@ interface SessionStore {
   remoteSessions: Record<string, RemoteSessionInfo[]>; // keyed by machine pubkeyHex
   remoteSessionModes: Record<string, AgentMode>; // keyed by sessionId
   historyLoading: Record<string, boolean>;
+  refreshing: boolean;
 
   setActiveSession: (id: string) => void;
   addOutput: (sessionId: string, entry: OutputEntry) => void;
@@ -49,6 +51,7 @@ interface SessionStore {
   isRemoteSession: (sessionId: string) => boolean;
   getMachineForSession: (sessionId: string) => RemoteMachine | null;
   requestSessionHistory: (sessionId: string) => Promise<void>;
+  requestRefreshSessions: () => void;
   createRemoteSession: (machine: RemoteMachine) => Promise<void>;
 }
 
@@ -67,6 +70,8 @@ const defaultConfig: AppConfig = {
 // --- History chunk tracking (module-level, not in store state) ---
 
 const HISTORY_IDLE_TIMEOUT_MS = 10_000;
+
+let refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 const historyChunkTrackers = new Map<string, {
   totalChunks: number;
@@ -174,6 +179,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   remoteSessions: {},
   remoteSessionModes: {},
   historyLoading: {},
+  refreshing: false,
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
@@ -470,16 +476,37 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     initBridge(privateKeyHex);
 
     setBridgeHandlers(
-      // onSessionList
-      (_machineName, sessions) => {
-        // Find machine by matching the event source — for now update all machines
-        // since the machine name comes from the message content
+      // onSessionList — incremental merge to preserve object identity for unchanged sessions
+      (_machineName, incomingSessions) => {
         const machines = get().machines;
         const machine = machines.find(m => m.hostname === _machineName) || machines[0];
         if (machine) {
-          set((state) => ({
-            remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: sessions },
-          }));
+          // Clear the refresh timeout since we got a response
+          if (refreshTimeoutId !== null) {
+            clearTimeout(refreshTimeoutId);
+            refreshTimeoutId = null;
+          }
+          set((state) => {
+            const existing = state.remoteSessions[machine.pubkeyHex] || [];
+            const existingMap = new Map(existing.map(s => [s.id, s]));
+
+            const merged = incomingSessions.map(incoming => {
+              const prev = existingMap.get(incoming.id);
+              if (!prev) return incoming; // new session
+              // Only create new object if something changed
+              if (prev.title === incoming.title && prev.lastActivity === incoming.lastActivity
+                  && prev.lineCount === incoming.lineCount && prev.project === incoming.project
+                  && prev.cwd === incoming.cwd) {
+                return prev; // unchanged — keep same reference
+              }
+              return { ...prev, ...incoming }; // merge updates
+            });
+
+            return {
+              remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: merged },
+              refreshing: false,
+            };
+          });
         }
       },
       // onOutput
@@ -591,6 +618,27 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
     }
     return null;
+  },
+
+  requestRefreshSessions: () => {
+    set({ refreshing: true });
+    // Cancel previous timeout to prevent early reset on rapid pulls
+    if (refreshTimeoutId !== null) {
+      clearTimeout(refreshTimeoutId);
+    }
+    const machines = get().machines.filter(m => m.connected);
+    for (const machine of machines) {
+      sendRefreshRequest(machine).catch(err => {
+        console.error(`[SessionStore] Failed to send refresh request to ${machine.hostname}:`, err);
+      });
+    }
+    // Timeout: reset refreshing after 3s if no session list arrives
+    refreshTimeoutId = setTimeout(() => {
+      refreshTimeoutId = null;
+      if (get().refreshing) {
+        set({ refreshing: false });
+      }
+    }, 3_000);
   },
 
   createRemoteSession: async (machine) => {
