@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, CSSProperties } from 'react';
+import { useEffect, useState, useCallback, useRef, CSSProperties } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { List, useListRef, useDynamicRowHeight } from 'react-window';
@@ -219,18 +219,37 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
   const [autoScroll, setAutoScroll] = useState(true);
   const [showPill, setShowPill] = useState(false);
   const [prevCount, setPrevCount] = useState(0);
+  const autoScrollRef = useRef(true);
+  const displayLenRef = useRef(0);
 
-  // Auto-scroll to bottom when new display entries arrive
+  // Keep refs in sync so the ResizeObserver callback reads fresh values
+  autoScrollRef.current = autoScroll;
+  displayLenRef.current = display.length;
+
+  // Show "New output" pill when new entries arrive while user is scrolled away
   useEffect(() => {
     if (display.length > prevCount) {
-      if (autoScroll && listRef.current) {
-        listRef.current.scrollToRow({ index: display.length - 1, align: 'end' });
-      } else if (!autoScroll) {
+      if (!autoScroll) {
         setShowPill(true);
       }
       setPrevCount(display.length);
     }
-  }, [display.length, autoScroll, prevCount, listRef]);
+  }, [display.length, autoScroll, prevCount]);
+
+  // Auto-scroll whenever the inner content grows (new entries, streaming, expand, etc.)
+  useEffect(() => {
+    const el = listRef.current?.element;
+    if (!el) return;
+    const inner = el.firstElementChild;
+    if (!inner) return;
+    const observer = new ResizeObserver(() => {
+      if (autoScrollRef.current && listRef.current && displayLenRef.current > 0) {
+        listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
+      }
+    });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, [listRef]);
 
   // Scroll to bottom on initial load (fix for history sessions)
   useEffect(() => {
@@ -245,12 +264,12 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     }
   }, [display.length, prevCount, listRef]);
 
-  // On resize, re-scroll if auto-scroll is on
+  // On container resize (orientation change, keyboard), re-scroll if auto-scroll is on
   const handleResize = useCallback((_size: { height: number; width: number }) => {
-    if (autoScroll && listRef.current && display.length > 0) {
-      listRef.current.scrollToRow({ index: display.length - 1, align: 'end' });
+    if (autoScrollRef.current && listRef.current && displayLenRef.current > 0) {
+      listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
     }
-  }, [autoScroll, display.length, listRef]);
+  }, [listRef]);
 
   const scrollToBottom = useCallback(() => {
     if (listRef.current && display.length > 0) {
@@ -265,7 +284,7 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     const el = listRef.current?.element;
     if (!el) return;
     const { scrollTop, scrollHeight, clientHeight } = el;
-    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+    const atBottom = scrollHeight - scrollTop - clientHeight < 150;
     setAutoScroll(atBottom);
     if (atBottom) setShowPill(false);
   }, [listRef]);
