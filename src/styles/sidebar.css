@@ -129,6 +129,14 @@
   flex-shrink: 0;
 }
 
+.session-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  flex-shrink: 0;
+}
+
 .status-dot.waiting {
   background: var(--status-waiting);
   animation: pulse 1.5s ease-in-out infinite;

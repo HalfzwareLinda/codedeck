@@ -20,6 +20,7 @@ interface SessionStore {
   outputs: Record<string, OutputEntry[]>;
   config: AppConfig;
   tokenUsage: Record<string, TokenUsage>;
+  unreadSessions: Set<string>;
 
   // Remote bridge state
   machines: RemoteMachine[];
@@ -171,12 +172,19 @@ function mockAgentResponse(sessionId: string, text: string, get: () => SessionSt
   steps.forEach(({ delay, fn }) => setTimeout(fn, delay));
 }
 
+/** Add sessionId to unreadSessions only if it is not the active session and not already marked. */
+function markUnread(state: SessionStore, sessionId: string): Partial<SessionStore> {
+  if (state.activeSessionId === sessionId || state.unreadSessions.has(sessionId)) return {};
+  return { unreadSessions: new Set([...state.unreadSessions, sessionId]) };
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   outputs: {},
   config: defaultConfig,
   tokenUsage: {},
+  unreadSessions: new Set(),
   machines: [],
   remoteSessions: {},
   remoteSessionModes: {},
@@ -184,7 +192,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   refreshing: false,
   pendingSessions: new Map(),
 
-  setActiveSession: (id) => set({ activeSessionId: id }),
+  setActiveSession: (id) => set((state) => {
+    if (!state.unreadSessions.has(id)) return { activeSessionId: id };
+    const unreadSessions = new Set(state.unreadSessions);
+    unreadSessions.delete(id);
+    return { activeSessionId: id, unreadSessions };
+  }),
 
   addOutput: (sessionId, entry) => set((state) => {
     const existing = state.outputs[sessionId] || [];
@@ -198,7 +211,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...last,
           content: last.content + entry.content,
         };
-        return { outputs: { ...state.outputs, [sessionId]: updated } };
+        return { outputs: { ...state.outputs, [sessionId]: updated }, ...markUnread(state, sessionId) };
       }
     }
 
@@ -207,7 +220,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return state;
     }
 
-    // Accumulate token usage directly in the store
+    // Accumulate token usage directly in the store (don't mark unread for metrics)
     if (entry.entry_type === 'token_usage') {
       const match = entry.content.match(/Tokens:\s*(\d+)\s*in\s*\/\s*(\d+)\s*out/);
       if (match) {
@@ -242,7 +255,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (updated.length > 5000) {
       updated = updated.slice(-5000);
     }
-    return { outputs: { ...state.outputs, [sessionId]: updated } };
+    return { outputs: { ...state.outputs, [sessionId]: updated }, ...markUnread(state, sessionId) };
   }),
 
   updateSession: (session) => set((state) => ({
@@ -669,8 +682,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         }
 
         set((state) => {
-          // Find the machine that has this pending placeholder
           const newRemoteSessions = { ...state.remoteSessions };
+
+          // Try to find the machine that has the pending placeholder
+          let foundPlaceholder = false;
           for (const [pubkeyHex, sessions] of Object.entries(newRemoteSessions)) {
             const idx = sessions.findIndex(s => s.id === `pending:${pendingId}`);
             if (idx >= 0) {
@@ -678,7 +693,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               const filtered = sessions.filter(s => s.id !== `pending:${pendingId}` && s.id !== session.id);
               filtered.push(session);
               newRemoteSessions[pubkeyHex] = filtered;
+              foundPlaceholder = true;
               break;
+            }
+          }
+
+          // If session-ready arrived before session-pending (out-of-order delivery),
+          // insert the session directly under the first machine that has sessions
+          if (!foundPlaceholder) {
+            const machineKeys = Object.keys(newRemoteSessions);
+            const targetKey = machineKeys[0] ?? get().machines[0]?.pubkeyHex;
+            if (targetKey) {
+              const existing = newRemoteSessions[targetKey] || [];
+              if (!existing.some(s => s.id === session.id)) {
+                newRemoteSessions[targetKey] = [...existing, session];
+              }
             }
           }
 

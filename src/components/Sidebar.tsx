@@ -32,12 +32,16 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
+  const isUnread = useSessionStore((s) => s.unreadSessions.has(session.id));
 
   const classes = [
     'session-card',
     isSelected ? 'selected' : '',
     stateClass(session.state),
   ].filter(Boolean).join(' ');
+
+  // Show unread dot only when StatusDot is absent (idle/completed/error)
+  const showUnread = isUnread && session.state !== 'running' && session.state !== 'waiting_permission';
 
   return (
     <div className={classes} onClick={() => { setActiveSession(session.id); setPanelMode('session'); setSidebarOpen(false); }}>
@@ -46,6 +50,7 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
         <div className="session-card-path">{session.workspace_path} · {session.branch}</div>
       </div>
       <StatusDot state={session.state} />
+      {showUnread && <div className="session-unread-dot" />}
     </div>
   );
 }
@@ -56,6 +61,7 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   const setPanelMode = useUIStore((s) => s.setPanelMode);
   const requestSessionHistory = useSessionStore((s) => s.requestSessionHistory);
   const hasOutput = useSessionStore((s) => (s.outputs[session.id]?.length ?? 0) > 0);
+  const isUnread = useSessionStore((s) => s.unreadSessions.has(session.id));
 
   const isPending = session.id.startsWith('pending:');
 
@@ -94,6 +100,7 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
           <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
         </div>
       </div>
+      {isUnread && <div className="session-unread-dot" />}
     </div>
   );
 }
