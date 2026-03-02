@@ -27,3 +27,6 @@ src-tauri/gen/android/app/build/
 # Signing keys
 *.jks
 *.keystore
+
+# Release APKs
+*.apk
