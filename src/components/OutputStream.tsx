@@ -8,6 +8,7 @@ import {
   useDisplayEntries,
   DisplayEntry,
   ToolGroupDisplay,
+  PlanApprovalDisplay,
   QuestionDisplay,
   PermissionRequestDisplay,
 } from '../hooks/useDisplayEntries';
@@ -94,8 +95,15 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
   return <div className="output-system">{entry.content}</div>;
 }
 
-function PlanApprovalEntry({ sessionId }: { sessionId: string }) {
+function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answered?: string }) {
   const sendMessage = useSessionStore((s) => s.sendMessage);
+  if (answered) {
+    return (
+      <div className="plan-approval-bar plan-approval-answered">
+        <div className="plan-approval-label">Plan approved</div>
+      </div>
+    );
+  }
   return (
     <div className="plan-approval-bar">
       <div className="plan-approval-label">Approve this plan?</div>
@@ -113,6 +121,15 @@ function PlanApprovalEntry({ sessionId }: { sessionId: string }) {
 
 function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: string }) {
   const sendMessage = useSessionStore((s) => s.sendMessage);
+  if (item.answered) {
+    return (
+      <div className="question-card question-answered">
+        {item.header && <div className="question-header">{item.header}</div>}
+        <div className="question-text">{item.entry.content}</div>
+        <div className="question-answer">{item.answered}</div>
+      </div>
+    );
+  }
   return (
     <div className="question-card">
       {item.header && <div className="question-header">{item.header}</div>}
@@ -185,7 +202,7 @@ function DisplayItem({
     case 'diff':
       return <DiffEntry entry={item.entry} />;
     case 'plan_approval':
-      return <PlanApprovalEntry sessionId={sessionId} />;
+      return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
     case 'permission_request':

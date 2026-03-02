@@ -40,6 +40,7 @@ export interface DiffDisplay extends DisplayEntryBase {
 export interface PlanApprovalDisplay extends DisplayEntryBase {
   kind: 'plan_approval';
   entry: OutputEntry;
+  answered?: string;
 }
 
 export interface QuestionDisplay extends DisplayEntryBase {
@@ -47,6 +48,7 @@ export interface QuestionDisplay extends DisplayEntryBase {
   entry: OutputEntry;
   header?: string;
   options?: Array<{ label: string; description?: string }>;
+  answered?: string;
 }
 
 export interface PermissionRequestDisplay extends DisplayEntryBase {
@@ -95,16 +97,15 @@ function buildToolSummary(entries: OutputEntry[]): string {
 }
 
 /**
- * Collect tool_use_ids that have a matching tool_result response.
- * Used to detect interactive entries (plan_approval, ask_question)
- * that have already been answered — so we can skip rendering them.
+ * Collect tool_use_ids that have a matching tool_result response,
+ * mapping each to the answer content text.
  */
-function collectAnsweredToolUseIds(outputs: OutputEntry[]): Set<string> {
-  const answered = new Set<string>();
+function collectAnsweredToolUseIds(outputs: OutputEntry[]): Map<string, string> {
+  const answered = new Map<string, string>();
   for (const entry of outputs) {
     if (entry.entry_type === 'tool_result') {
       const id = entry.metadata?.tool_use_id as string | undefined;
-      if (id) answered.add(id);
+      if (id) answered.set(id, entry.content);
     }
   }
   return answered;
@@ -113,14 +114,15 @@ function collectAnsweredToolUseIds(outputs: OutputEntry[]): Set<string> {
 /**
  * Transforms a flat OutputEntry[] into grouped DisplayEntry[].
  * - Consecutive tool entries are merged into tool_group items
- * - Answered interactive entries (plan_approval, ask_question) are omitted
+ * - Answered plan_approval / ask_question entries shown in completed state
+ * - Answered permission_request entries are omitted (bridge pre-filters for history)
  * - token_usage entries are handled upstream in the store (never reach here)
  */
 function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   const display: DisplayEntry[] = [];
   let currentToolGroup: OutputEntry[] = [];
   let toolGroupStart = 0;
-  const answeredIds = collectAnsweredToolUseIds(outputs);
+  const answeredMap = collectAnsweredToolUseIds(outputs);
 
   function flushToolGroup() {
     if (currentToolGroup.length > 0) {
@@ -149,15 +151,19 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     // Non-tool entry — flush any pending tool group first
     flushToolGroup();
 
-    // Skip interactive entries that have already been answered
     const special = entry.metadata?.special as string | undefined;
     const toolUseId = entry.metadata?.tool_use_id as string | undefined;
-    if ((special === 'plan_approval' || special === 'ask_question' || special === 'permission_request') && toolUseId && answeredIds.has(toolUseId)) {
+
+    // Skip answered permission_request entries (bridge pre-filters these for history)
+    if (special === 'permission_request' && toolUseId && answeredMap.has(toolUseId)) {
       continue;
     }
 
+    // Plan approval and question cards: show in completed state if answered
+    const answerContent = toolUseId ? answeredMap.get(toolUseId) : undefined;
+
     if (special === 'plan_approval') {
-      display.push({ kind: 'plan_approval', entry, sourceStart: i });
+      display.push({ kind: 'plan_approval', entry, sourceStart: i, answered: answerContent });
       continue;
     }
     if (special === 'permission_request') {
@@ -178,6 +184,7 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
         header: entry.metadata?.header as string | undefined,
         options: entry.metadata?.options as Array<{ label: string; description?: string }> | undefined,
         sourceStart: i,
+        answered: answerContent,
       });
       continue;
     }
