@@ -7,7 +7,9 @@ import {
   connectToMachine,
   disconnectFromMachine,
   sendRemoteInput,
+  sendRemoteImage,
   sendRemoteModeChange,
+  sendRemotePermissionResponse,
   sendHistoryRequest,
   sendCreateSessionRequest,
   sendRefreshRequest,
@@ -40,7 +42,7 @@ interface SessionStore {
   loadConfig: () => Promise<void>;
   createSession: (name: string, group: string, repoUrl: string, branch: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
-  sendMessage: (sessionId: string, text: string) => Promise<void>;
+  sendMessage: (sessionId: string, text: string, image?: { base64: string; filename: string; mimeType: string }) => Promise<void>;
   cancelAgent: (sessionId: string) => Promise<void>;
   respondPermission: (sessionId: string, requestId: string, allow: boolean) => Promise<void>;
   setMode: (sessionId: string, mode: AgentMode) => Promise<void>;
@@ -56,6 +58,7 @@ interface SessionStore {
   requestSessionHistory: (sessionId: string) => Promise<void>;
   requestRefreshSessions: () => void;
   createRemoteSession: (machine: RemoteMachine) => Promise<void>;
+  respondRemotePermission: (sessionId: string, requestId: string, allow: boolean, modifier?: 'always' | 'never') => Promise<void>;
 }
 
 const defaultConfig: AppConfig = {
@@ -311,10 +314,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }));
   },
 
-  sendMessage: async (sessionId, text) => {
+  sendMessage: async (sessionId, text, image) => {
     get().addOutput(sessionId, {
       entry_type: 'user_message',
-      content: text,
+      content: text || (image ? `[Image: ${image.filename}]` : ''),
       timestamp: new Date().toISOString(),
     });
 
@@ -322,7 +325,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const machine = get().getMachineForSession(sessionId);
     if (machine) {
       try {
-        await sendRemoteInput(machine, sessionId, text);
+        if (image) {
+          await sendRemoteImage(machine, sessionId, text, image.base64, image.filename, image.mimeType);
+        } else {
+          await sendRemoteInput(machine, sessionId, text);
+        }
       } catch (e) {
         get().addOutput(sessionId, {
           entry_type: 'error',
@@ -334,7 +341,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
 
     if (!isTauri()) {
-      mockAgentResponse(sessionId, text, get);
+      mockAgentResponse(sessionId, text || '[Image attached]', get);
       return;
     }
     try {
@@ -828,6 +835,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await sendCreateSessionRequest(machine);
     } catch (e) {
       console.error('[SessionStore] Failed to create remote session:', e);
+    }
+  },
+
+  respondRemotePermission: async (sessionId, requestId, allow, modifier) => {
+    const machine = get().getMachineForSession(sessionId);
+    if (!machine) {
+      console.warn('[SessionStore] respondRemotePermission: no machine for session', sessionId);
+      return;
+    }
+    try {
+      await sendRemotePermissionResponse(machine, sessionId, requestId, allow, modifier);
+    } catch (e) {
+      console.error('[SessionStore] Failed to send permission response:', e);
     }
   },
 

@@ -22,6 +22,7 @@ import type {
   BridgeInboundMessage,
   BridgeOutboundMessage,
 } from '../types';
+import { chunkBase64 } from '../utils/imageUtils';
 
 // Must match the bridge extension's event kinds.
 // Kind 4515 is in the regular range (1-9999) so relays store and forward reliably.
@@ -168,8 +169,9 @@ export async function sendRemotePermissionResponse(
   sessionId: string,
   requestId: string,
   allow: boolean,
+  modifier?: 'always' | 'never',
 ): Promise<void> {
-  const msg: BridgeOutboundMessage = { type: 'permission-res', sessionId, requestId, allow };
+  const msg: BridgeOutboundMessage = { type: 'permission-res', sessionId, requestId, allow, modifier };
   await publishToMachine(machine, msg);
 }
 
@@ -217,6 +219,42 @@ export async function sendHistoryRequest(
 ): Promise<void> {
   const msg: BridgeOutboundMessage = { type: 'history-request', sessionId, afterSeq };
   await publishToMachine(machine, msg);
+}
+
+/**
+ * Send an image attachment to a Claude Code session on a remote machine.
+ * The image is chunked into relay-safe pieces and sent as sequential events.
+ */
+export async function sendRemoteImage(
+  machine: RemoteMachine,
+  sessionId: string,
+  text: string,
+  base64: string,
+  filename: string,
+  mimeType: string,
+): Promise<void> {
+  const uploadId = crypto.randomUUID();
+  const chunks = chunkBase64(base64);
+
+  for (let i = 0; i < chunks.length; i++) {
+    const msg: BridgeOutboundMessage = {
+      type: 'upload-image',
+      sessionId,
+      uploadId,
+      filename,
+      mimeType,
+      base64Data: chunks[i],
+      text: i === 0 ? text : '',
+      chunkIndex: i,
+      totalChunks: chunks.length,
+    };
+    await publishToMachine(machine, msg);
+
+    // Inter-chunk delay to avoid relay rate-limiting
+    if (i < chunks.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
 }
 
 // --- Internal ---

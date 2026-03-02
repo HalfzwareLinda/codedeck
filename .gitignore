@@ -30,3 +30,6 @@ src-tauri/gen/android/app/build/
 
 # Release APKs
 *.apk
+
+# Image uploads from phone (created by bridge, not committed)
+.codedeck/uploads/

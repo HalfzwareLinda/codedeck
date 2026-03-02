@@ -9,6 +9,7 @@ import {
   DisplayEntry,
   ToolGroupDisplay,
   QuestionDisplay,
+  PermissionRequestDisplay,
 } from '../hooks/useDisplayEntries';
 import '../styles/output.css';
 
@@ -136,6 +137,27 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
   );
 }
 
+function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDisplay; sessionId: string }) {
+  const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
+  return (
+    <div className="plan-approval-bar">
+      <div className="plan-approval-label">{item.toolName}</div>
+      <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
+      <div className="plan-approval-actions">
+        <button className="btn-allow" onClick={() => respondRemotePermission(sessionId, item.requestId, true)}>
+          Allow
+        </button>
+        <button className="btn-allow" style={{ opacity: 0.8 }} onClick={() => respondRemotePermission(sessionId, item.requestId, true, 'always')}>
+          Always
+        </button>
+        <button className="btn-deny" onClick={() => respondRemotePermission(sessionId, item.requestId, false)}>
+          Deny
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // --- Display item dispatcher ---
 
 function DisplayItem({
@@ -166,6 +188,8 @@ function DisplayItem({
       return <PlanApprovalEntry sessionId={sessionId} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
+    case 'permission_request':
+      return <PermissionRequestEntry item={item} sessionId={sessionId} />;
     default:
       return null;
   }

@@ -49,6 +49,14 @@ export interface QuestionDisplay extends DisplayEntryBase {
   options?: Array<{ label: string; description?: string }>;
 }
 
+export interface PermissionRequestDisplay extends DisplayEntryBase {
+  kind: 'permission_request';
+  entry: OutputEntry;
+  toolName: string;
+  description: string;
+  requestId: string;
+}
+
 export type DisplayEntry =
   | UserMessageDisplay
   | AssistantMessageDisplay
@@ -57,7 +65,8 @@ export type DisplayEntry =
   | SystemDisplay
   | DiffDisplay
   | PlanApprovalDisplay
-  | QuestionDisplay;
+  | QuestionDisplay
+  | PermissionRequestDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
 
@@ -143,12 +152,23 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     // Skip interactive entries that have already been answered
     const special = entry.metadata?.special as string | undefined;
     const toolUseId = entry.metadata?.tool_use_id as string | undefined;
-    if ((special === 'plan_approval' || special === 'ask_question') && toolUseId && answeredIds.has(toolUseId)) {
+    if ((special === 'plan_approval' || special === 'ask_question' || special === 'permission_request') && toolUseId && answeredIds.has(toolUseId)) {
       continue;
     }
 
     if (special === 'plan_approval') {
       display.push({ kind: 'plan_approval', entry, sourceStart: i });
+      continue;
+    }
+    if (special === 'permission_request') {
+      display.push({
+        kind: 'permission_request',
+        entry,
+        toolName: (entry.metadata?.tool_name as string) ?? '',
+        description: entry.content,
+        requestId: toolUseId ?? '',
+        sourceStart: i,
+      });
       continue;
     }
     if (special === 'ask_question') {
