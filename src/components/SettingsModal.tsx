@@ -64,6 +64,14 @@ export default function SettingsModal() {
     if (config) setLocal(config);
   }, [config]);
 
+  useEffect(() => {
+    setRelayList(nostrConfig.relays.join('\n'));
+  }, [nostrConfig.relays]);
+
+  useEffect(() => {
+    setNostrKey(nostrConfig.private_key_hex || '');
+  }, [nostrConfig.private_key_hex]);
+
   const derivedNpub = useMemo(() => {
     if (!nostrKey) return '';
     const sk = parsePrivateKey(nostrKey);
