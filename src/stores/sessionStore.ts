@@ -27,6 +27,8 @@ interface SessionStore {
   remoteSessionModes: Record<string, AgentMode>; // keyed by sessionId
   historyLoading: Record<string, boolean>;
   refreshing: boolean;
+  /** Pending sessions awaiting JSONL file creation. Map<pendingId, metadata>. */
+  pendingSessions: Map<string, { pendingId: string; machine: string; createdAt: string; timeoutId: ReturnType<typeof setTimeout> }>;
 
   setActiveSession: (id: string) => void;
   addOutput: (sessionId: string, entry: OutputEntry) => void;
@@ -180,6 +182,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   remoteSessionModes: {},
   historyLoading: {},
   refreshing: false,
+  pendingSessions: new Map(),
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
@@ -476,7 +479,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     initBridge(privateKeyHex);
 
     setBridgeHandlers(
-      // onSessionList — incremental merge to preserve object identity for unchanged sessions
+      // onSessionList — incremental merge, preserves pending placeholders, deduplicates
       (_machineName, incomingSessions) => {
         const machines = get().machines;
         const machine = machines.find(m => m.hostname === _machineName) || machines[0];
@@ -489,11 +492,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           set((state) => {
             const existing = state.remoteSessions[machine.pubkeyHex] || [];
             const existingMap = new Map(existing.map(s => [s.id, s]));
+            const incomingIds = new Set(incomingSessions.map(s => s.id));
 
             const merged = incomingSessions.map(incoming => {
               const prev = existingMap.get(incoming.id);
               if (!prev) return incoming; // new session
-              // Only create new object if something changed
               if (prev.title === incoming.title && prev.lastActivity === incoming.lastActivity
                   && prev.lineCount === incoming.lineCount && prev.project === incoming.project
                   && prev.cwd === incoming.cwd) {
@@ -501,6 +504,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               }
               return { ...prev, ...incoming }; // merge updates
             });
+
+            // Preserve pending placeholders that haven't been resolved yet,
+            // but remove any whose pendingId matches a real session that just arrived
+            const pendingPlaceholders = existing.filter(s => {
+              if (!s.id.startsWith('pending:')) return false;
+              // Check if a real session arrived that resolves this pending
+              // (pendingId is stored in the session id as 'pending:<pendingId>')
+              const pendingId = s.id.slice(8);
+              // If a real session with this pendingId already exists, remove the placeholder
+              // (this handles the dedup from the onSessionList direction)
+              return !state.pendingSessions.has(pendingId) ? false : !incomingIds.has(s.id);
+            });
+            if (pendingPlaceholders.length > 0) {
+              merged.push(...pendingPlaceholders);
+            }
 
             return {
               remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: merged },
@@ -590,6 +608,112 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           }, HISTORY_IDLE_TIMEOUT_MS);
         }
       },
+      // onSessionPending — insert placeholder into remoteSessions
+      (pendingId, machineName, createdAt) => {
+        const machines = get().machines;
+        const machine = machines.find(m => m.hostname === machineName) || machines[0];
+        if (!machine) return;
+
+        // 2-minute client-side cleanup timer
+        const timeoutId = setTimeout(() => {
+          console.warn(`[SessionStore] Pending session ${pendingId} expired (2min cleanup)`);
+          const pending = get().pendingSessions;
+          if (pending.has(pendingId)) {
+            pending.delete(pendingId);
+            set((state) => {
+              const existing = state.remoteSessions[machine.pubkeyHex] || [];
+              return {
+                remoteSessions: {
+                  ...state.remoteSessions,
+                  [machine.pubkeyHex]: existing.filter(s => s.id !== `pending:${pendingId}`),
+                },
+                pendingSessions: new Map(pending),
+              };
+            });
+          }
+        }, 120_000);
+
+        // Track in pendingSessions
+        const pending = new Map(get().pendingSessions);
+        pending.set(pendingId, { pendingId, machine: machineName, createdAt, timeoutId });
+
+        // Insert placeholder RemoteSessionInfo
+        const placeholder: RemoteSessionInfo = {
+          id: `pending:${pendingId}`,
+          slug: 'Starting...',
+          cwd: '',
+          lastActivity: createdAt,
+          lineCount: 0,
+          title: null,
+          project: 'Waiting for Claude Code...',
+        };
+
+        set((state) => {
+          const existing = state.remoteSessions[machine.pubkeyHex] || [];
+          return {
+            remoteSessions: {
+              ...state.remoteSessions,
+              [machine.pubkeyHex]: [...existing, placeholder],
+            },
+            pendingSessions: pending,
+          };
+        });
+      },
+      // onSessionReady — replace placeholder with real session, set active, switch panel
+      (pendingId, session) => {
+        const pending = get().pendingSessions;
+        const entry = pending.get(pendingId);
+        if (entry) {
+          clearTimeout(entry.timeoutId);
+          pending.delete(pendingId);
+        }
+
+        set((state) => {
+          // Find the machine that has this pending placeholder
+          const newRemoteSessions = { ...state.remoteSessions };
+          for (const [pubkeyHex, sessions] of Object.entries(newRemoteSessions)) {
+            const idx = sessions.findIndex(s => s.id === `pending:${pendingId}`);
+            if (idx >= 0) {
+              // Remove placeholder, add real session (dedup: check if real session already exists)
+              const filtered = sessions.filter(s => s.id !== `pending:${pendingId}` && s.id !== session.id);
+              filtered.push(session);
+              newRemoteSessions[pubkeyHex] = filtered;
+              break;
+            }
+          }
+
+          return {
+            remoteSessions: newRemoteSessions,
+            activeSessionId: session.id,
+            pendingSessions: new Map(pending),
+          };
+        });
+      },
+      // onSessionFailed — remove placeholder
+      (pendingId, reason) => {
+        console.warn(`[SessionStore] Session failed: ${pendingId} (${reason})`);
+        const pending = get().pendingSessions;
+        const entry = pending.get(pendingId);
+        if (entry) {
+          clearTimeout(entry.timeoutId);
+          pending.delete(pendingId);
+        }
+
+        set((state) => {
+          const newRemoteSessions = { ...state.remoteSessions };
+          for (const [pubkeyHex, sessions] of Object.entries(newRemoteSessions)) {
+            const idx = sessions.findIndex(s => s.id === `pending:${pendingId}`);
+            if (idx >= 0) {
+              newRemoteSessions[pubkeyHex] = sessions.filter(s => s.id !== `pending:${pendingId}`);
+              break;
+            }
+          }
+          return {
+            remoteSessions: newRemoteSessions,
+            pendingSessions: new Map(pending),
+          };
+        });
+      },
     );
 
     // Reconnect to all saved machines
@@ -600,6 +724,35 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         connectToMachine(machine);
       }
     }
+
+    // Stale cleanup: every 30s, remove pending placeholders older than 2 minutes
+    setInterval(() => {
+      const now = Date.now();
+      const pending = get().pendingSessions;
+      const stale: string[] = [];
+      for (const [pendingId, entry] of pending) {
+        if (now - new Date(entry.createdAt).getTime() > 120_000) {
+          stale.push(pendingId);
+        }
+      }
+      if (stale.length > 0) {
+        for (const pendingId of stale) {
+          const entry = pending.get(pendingId);
+          if (entry) clearTimeout(entry.timeoutId);
+          pending.delete(pendingId);
+        }
+        set((state) => {
+          const newRemoteSessions = { ...state.remoteSessions };
+          for (const [pubkeyHex, sessions] of Object.entries(newRemoteSessions)) {
+            const filtered = sessions.filter(s => !stale.some(pid => s.id === `pending:${pid}`));
+            if (filtered.length !== sessions.length) {
+              newRemoteSessions[pubkeyHex] = filtered;
+            }
+          }
+          return { remoteSessions: newRemoteSessions, pendingSessions: new Map(pending) };
+        });
+      }
+    }, 30_000);
   },
 
   isRemoteSession: (sessionId) => {

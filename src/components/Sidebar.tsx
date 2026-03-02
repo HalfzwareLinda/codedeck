@@ -57,9 +57,12 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   const requestSessionHistory = useSessionStore((s) => s.requestSessionHistory);
   const hasOutput = useSessionStore((s) => (s.outputs[session.id]?.length ?? 0) > 0);
 
-  const classes = ['session-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
+  const isPending = session.id.startsWith('pending:');
+
+  const classes = ['session-card', isSelected ? 'selected' : '', isPending ? 'pending' : ''].filter(Boolean).join(' ');
 
   const handleClick = () => {
+    if (isPending) return; // Non-clickable while pending
     setActiveSession(session.id);
     setPanelMode('session');
     setSidebarOpen(false);
@@ -67,6 +70,20 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
       requestSessionHistory(session.id);
     }
   };
+
+  if (isPending) {
+    return (
+      <div className={classes} style={{ opacity: 0.7, cursor: 'default' }}>
+        <div className="session-card-info">
+          <div className="session-card-name">Starting...</div>
+          <div className="session-card-path">
+            <span className="session-card-path-text">Waiting for Claude Code...</span>
+          </div>
+        </div>
+        <div className="status-dot running" />
+      </div>
+    );
+  }
 
   return (
     <div className={classes} onClick={handleClick}>

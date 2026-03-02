@@ -33,6 +33,9 @@ type SessionListHandler = (machine: string, sessions: RemoteSessionInfo[]) => vo
 type OutputHandler = (sessionId: string, entry: RemoteOutputEntry, seq: number) => void;
 type HistoryHandler = (sessionId: string, entries: Array<{ seq: number; entry: RemoteOutputEntry }>, totalEntries: number, chunkIndex?: number, totalChunks?: number, requestId?: string) => void;
 type StatusHandler = (machine: string, status: 'connected' | 'disconnected' | 'connecting') => void;
+type SessionPendingHandler = (pendingId: string, machine: string, createdAt: string) => void;
+type SessionReadyHandler = (pendingId: string, session: RemoteSessionInfo) => void;
+type SessionFailedHandler = (pendingId: string, reason: string) => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -41,6 +44,9 @@ let onSessionList: SessionListHandler | null = null;
 let onOutput: OutputHandler | null = null;
 let onHistory: HistoryHandler | null = null;
 let onStatus: StatusHandler | null = null;
+let onSessionPending: SessionPendingHandler | null = null;
+let onSessionReady: SessionReadyHandler | null = null;
+let onSessionFailed: SessionFailedHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -73,11 +79,17 @@ export function setBridgeHandlers(
   outputHandler: OutputHandler,
   statusHandler: StatusHandler,
   historyHandler?: HistoryHandler,
+  sessionPendingHandler?: SessionPendingHandler,
+  sessionReadyHandler?: SessionReadyHandler,
+  sessionFailedHandler?: SessionFailedHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
   onStatus = statusHandler;
   onHistory = historyHandler ?? null;
+  onSessionPending = sessionPendingHandler ?? null;
+  onSessionReady = sessionReadyHandler ?? null;
+  onSessionFailed = sessionFailedHandler ?? null;
 }
 
 /**
@@ -257,6 +269,15 @@ function handleBridgeEvent(event: { pubkey: string; content: string }, _machine:
         break;
       case 'history':
         onHistory?.(msg.sessionId, msg.entries, msg.totalEntries, msg.chunkIndex, msg.totalChunks, msg.requestId);
+        break;
+      case 'session-pending':
+        onSessionPending?.(msg.pendingId, msg.machine, msg.createdAt);
+        break;
+      case 'session-ready':
+        onSessionReady?.(msg.pendingId, msg.session);
+        break;
+      case 'session-failed':
+        onSessionFailed?.(msg.pendingId, msg.reason);
         break;
     }
   } catch (err) {

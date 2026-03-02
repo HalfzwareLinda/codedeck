@@ -109,7 +109,10 @@ export interface RemoteOutputEntry {
 export type BridgeInboundMessage =
   | { type: 'sessions'; machine: string; sessions: RemoteSessionInfo[] }
   | { type: 'output'; sessionId: string; seq: number; entry: RemoteOutputEntry }
-  | { type: 'history'; sessionId: string; entries: Array<{ seq: number; entry: RemoteOutputEntry }>; totalEntries: number; fromSeq: number; toSeq: number; chunkIndex?: number; totalChunks?: number; requestId?: string };
+  | { type: 'history'; sessionId: string; entries: Array<{ seq: number; entry: RemoteOutputEntry }>; totalEntries: number; fromSeq: number; toSeq: number; chunkIndex?: number; totalChunks?: number; requestId?: string }
+  | { type: 'session-pending'; pendingId: string; machine: string; createdAt: string }
+  | { type: 'session-ready'; pendingId: string; session: RemoteSessionInfo }
+  | { type: 'session-failed'; pendingId: string; reason: string };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }
