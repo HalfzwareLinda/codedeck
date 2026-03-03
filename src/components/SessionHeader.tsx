@@ -61,7 +61,12 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
       ) : remoteSession ? (
         <>
           <div className="header-info">
-            <div className="header-title">{remoteSession.title || remoteSession.slug}</div>
+            <div className="header-title">
+              {remoteSession.title || remoteSession.slug}
+              {remoteSession.permissionMode === 'bypassPermissions' && (
+                <span className="header-bypass-badge">BYPASS</span>
+              )}
+            </div>
             <div className="header-subtitle">{remoteSession.project || remoteSession.cwd}</div>
           </div>
           {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (

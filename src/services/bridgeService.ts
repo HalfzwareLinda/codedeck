@@ -41,6 +41,7 @@ type InputFailedHandler = (sessionId: string, reason: 'no-terminal' | 'expired')
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
+let generation = 0; // incremented on re-init to abort in-flight publishes
 
 let onSessionList: SessionListHandler | null = null;
 let onOutput: OutputHandler | null = null;
@@ -54,6 +55,9 @@ let onInputFailed: InputFailedHandler | null = null;
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
 
+// Track latest event timestamp per machine for `since` filter on reconnect
+const lastSeenTimestamps: Map<string, number> = new Map();
+
 /**
  * Initialize the bridge service with the phone's Nostr identity.
  */
@@ -65,12 +69,13 @@ export function initBridge(privateKeyHex: string): void {
   if (ownPubkeyHex && ownPubkeyHex !== newPubkey) {
     disconnectAll();
   }
+  generation++; // invalidate any in-flight publishes from previous init
 
   ownSecretKeyBytes = newKeyBytes;
   ownPubkeyHex = newPubkey;
 
   if (!pool) {
-    pool = new SimplePool();
+    pool = new SimplePool({ enableReconnect: true });
   }
 }
 
@@ -111,16 +116,30 @@ export function connectToMachine(machine: RemoteMachine): void {
 
   onStatus?.(machine.hostname, 'connecting');
 
+  // Use `since` filter to avoid replaying all stored events on reconnect
+  const lastSeen = lastSeenTimestamps.get(machine.pubkeyHex);
+  const filter: Record<string, unknown> = {
+    kinds: [OUTPUT_EVENT_KIND, SESSION_LIST_EVENT_KIND],
+    '#p': [ownPubkeyHex],
+    authors: [machine.pubkeyHex],
+  };
+  if (lastSeen && lastSeen > 0) {
+    filter.since = lastSeen - 5; // 5s grace window
+  }
+
   const sub = pool.subscribeMany(
     machine.relays,
-    // Subscribe to both output events (kind 29515) and session list (kind 30515)
-    { kinds: [OUTPUT_EVENT_KIND, SESSION_LIST_EVENT_KIND], '#p': [ownPubkeyHex], authors: [machine.pubkeyHex] },
+    filter as Parameters<SimplePool['subscribeMany']>[1],
     {
       onevent(event) {
         handleBridgeEvent(event, machine);
       },
       oneose() {
         onStatus?.(machine.hostname, 'connected');
+      },
+      onclose(reasons) {
+        console.warn('[Bridge] Subscription closed:', reasons);
+        onStatus?.(machine.hostname, 'connecting');
       },
     },
   );
@@ -136,6 +155,17 @@ export function disconnectFromMachine(pubkeyHex: string): void {
   if (sub) {
     sub.close();
     subscriptions.delete(pubkeyHex);
+  }
+}
+
+/**
+ * Reconnect all currently tracked machine subscriptions.
+ * Called on foreground resume since Android kills WebSockets after ~30s background.
+ */
+export function reconnectAllMachines(machines: RemoteMachine[]): void {
+  if (!pool || !ownSecretKeyBytes || !ownPubkeyHex) { return; }
+  for (const machine of machines) {
+    connectToMachine(machine);
   }
 }
 
@@ -276,39 +306,59 @@ export async function sendRemoteImage(
 
 // --- Internal ---
 
-async function publishToMachine(machine: RemoteMachine, msg: BridgeOutboundMessage): Promise<void> {
+async function publishToMachine(machine: RemoteMachine, msg: BridgeOutboundMessage): Promise<boolean> {
   if (!pool || !ownSecretKeyBytes) {
     console.error('[Bridge] Not initialized');
-    return;
+    return false;
   }
 
-  try {
-    const json = JSON.stringify(msg);
-    const conversationKey = getConversationKey(ownSecretKeyBytes, machine.pubkeyHex);
-    const ciphertext = encrypt(json, conversationKey);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const json = JSON.stringify(msg);
+      const conversationKey = getConversationKey(ownSecretKeyBytes, machine.pubkeyHex);
+      const ciphertext = encrypt(json, conversationKey);
 
-    const event = finalizeEvent({
-      kind: OUTPUT_EVENT_KIND, // phone→bridge messages use regular event kind
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [['p', machine.pubkeyHex]],
-      content: ciphertext,
-    }, ownSecretKeyBytes);
+      const event = finalizeEvent({
+        kind: OUTPUT_EVENT_KIND, // phone→bridge messages use regular event kind
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [['p', machine.pubkeyHex]],
+        content: ciphertext,
+      }, ownSecretKeyBytes);
 
-    // pool.publish returns Promise<string>[] — await each relay individually
-    const results = pool.publish(machine.relays, event);
-    const outcomes = await Promise.allSettled(results);
-    for (let i = 0; i < outcomes.length; i++) {
-      if (outcomes[i].status === 'rejected') {
-        console.warn(`[Bridge] Relay ${machine.relays[i]} rejected publish:`, (outcomes[i] as PromiseRejectedResult).reason);
+      // pool.publish returns Promise<string>[] — await each relay individually
+      if (!pool) { return false; } // pool may have been destroyed during encrypt
+      const results = pool.publish(machine.relays, event);
+      const outcomes = await Promise.allSettled(results);
+      const anySuccess = outcomes.some(o => o.status === 'fulfilled');
+
+      for (let i = 0; i < outcomes.length; i++) {
+        if (outcomes[i].status === 'rejected') {
+          console.warn(`[Bridge] Relay ${machine.relays[i]} rejected publish:`, (outcomes[i] as PromiseRejectedResult).reason);
+        }
       }
+
+      if (anySuccess) { return true; }
+
+      // All relays rejected — retry once after 2s
+      if (attempt === 0) {
+        console.warn('[Bridge] All relays rejected, retrying in 2s...');
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } catch (err) {
+      console.error(`[Bridge] Failed to publish to ${machine.hostname} (attempt ${attempt + 1}):`, err);
     }
-  } catch (err) {
-    console.error(`[Bridge] Failed to publish to ${machine.hostname}:`, err);
   }
+  return false;
 }
 
-function handleBridgeEvent(event: { pubkey: string; content: string }, _machine: RemoteMachine): void {
+function handleBridgeEvent(event: { pubkey: string; content: string; created_at: number }, _machine: RemoteMachine): void {
   if (!ownSecretKeyBytes) { return; }
+
+  // Track latest event timestamp for `since` filter on reconnect
+  const prev = lastSeenTimestamps.get(_machine.pubkeyHex) ?? 0;
+  if (event.created_at > prev) {
+    lastSeenTimestamps.set(_machine.pubkeyHex, event.created_at);
+  }
 
   try {
     const conversationKey = getConversationKey(ownSecretKeyBytes, event.pubkey);
@@ -339,8 +389,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string }, _machine:
         break;
     }
   } catch (err) {
-    console.error('[Bridge] Failed to decrypt/parse event:', err);
-    onStatus?.(_machine.hostname, 'disconnected');
+    // Don't change connection status on individual decrypt/parse failures —
+    // the subscription is still alive. Only relay connection drops should trigger 'disconnected'.
+    console.warn('[Bridge] Failed to decrypt/parse event:', err);
   }
 }
 

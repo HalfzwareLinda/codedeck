@@ -1,5 +1,5 @@
 export type SessionState = 'idle' | 'running' | 'waiting_permission' | 'completed' | 'error';
-export type AgentMode = 'plan' | 'auto';
+export type AgentMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
 export type OutputType = 'action' | 'diff' | 'message' | 'error' | 'system' | 'tool_use' | 'tool_result' | 'user_message' | 'token_usage';
 export type GitSyncStatus = 'synced' | 'pending_push' | 'push_failed' | 'never_pushed';
 
@@ -98,6 +98,7 @@ export interface RemoteSessionInfo {
   title: string | null;
   project: string;
   hasTerminal?: boolean;
+  permissionMode?: AgentMode;
 }
 
 export interface RemoteOutputEntry {

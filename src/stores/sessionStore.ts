@@ -85,6 +85,13 @@ const HISTORY_IDLE_TIMEOUT_MS = 10_000;
 
 let refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+/** Guard against multiple initBridgeService calls stacking handlers and intervals. */
+let bridgeInitialized = false;
+let staleCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Stored unlisten functions for Tauri event listeners. */
+let eventUnlisteners: Array<() => void> = [];
+
 /** Tracks sessions for which auto-history-request has already been dispatched. */
 const autoHistoryRequested = new Set<string>();
 
@@ -286,6 +293,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     if (seq !== undefined) {
       const insertIdx = findInsertIndex(existing, seq);
+      // Dedup: skip if an entry with the same bridgeSeq already exists at this position
+      if (insertIdx < existing.length) {
+        const existingSeq = existing[insertIdx].metadata?.bridgeSeq as number | undefined;
+        if (existingSeq === seq) {
+          return state; // duplicate — skip
+        }
+      }
       updated = [...existing.slice(0, insertIdx), entry, ...existing.slice(insertIdx)];
     } else {
       updated = [...existing, entry];
@@ -496,21 +510,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   initEventListeners: async () => {
-    await events.onSessionOutput((data) => {
+    // Clean up previous listeners to prevent duplicates on re-init
+    for (const unlisten of eventUnlisteners) { unlisten(); }
+    eventUnlisteners = [];
+
+    const u1 = await events.onSessionOutput((data) => {
       const { session_id, entry } = data as { session_id: string; entry: OutputEntry };
       get().addOutput(session_id, entry);
     });
-    await events.onSessionState((data) => {
+    const u2 = await events.onSessionState((data) => {
       const { session } = data as { session_id: string; session: Session };
       get().updateSession(session);
     });
-    await events.onPermissionRequest(() => {
+    const u3 = await events.onPermissionRequest(() => {
       get().loadSessions();
     });
-    await events.onTokenUsage((data) => {
+    const u4 = await events.onTokenUsage((data) => {
       const { session_id, usage } = data as { session_id: string; usage: TokenUsage };
       get().updateTokenUsage(session_id, usage);
     });
+    eventUnlisteners = [u1, u2, u3, u4];
   },
 
   // --- Remote Bridge ---
@@ -536,13 +555,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const removedSessions = state.remoteSessions[pubkeyHex] ?? [];
       const removedIds = new Set(removedSessions.map(s => s.id));
       const { [pubkeyHex]: _, ...restSessions } = state.remoteSessions;
-      // Clean up mode tracking for removed sessions
+      // Clean up all per-session state for removed sessions
       const cleanedModes = { ...state.remoteSessionModes };
-      for (const id of removedIds) { delete cleanedModes[id]; }
+      const cleanedOutputs = { ...state.outputs };
+      const cleanedUsage = { ...state.tokenUsage };
+      const cleanedLoading = { ...state.historyLoading };
+      for (const id of removedIds) {
+        delete cleanedModes[id];
+        delete cleanedOutputs[id];
+        delete cleanedUsage[id];
+        delete cleanedLoading[id];
+        autoHistoryRequested.delete(id);
+      }
       return {
         machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
         remoteSessions: restSessions,
         remoteSessionModes: cleanedModes,
+        outputs: cleanedOutputs,
+        tokenUsage: cleanedUsage,
+        historyLoading: cleanedLoading,
       };
     });
     persistSet('codedeck_machines', get().machines);
@@ -550,6 +581,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   initBridgeService: async (privateKeyHex) => {
     initBridge(privateKeyHex);
+
+    // Skip re-registration of handlers if already initialized
+    if (bridgeInitialized) {
+      // Just reconnect machines with the (potentially new) key
+      const saved = await persistGet<RemoteMachine[]>('codedeck_machines');
+      if (saved && Array.isArray(saved)) {
+        set({ machines: saved });
+        for (const machine of saved) { connectToMachine(machine); }
+      }
+      return;
+    }
+    bridgeInitialized = true;
 
     setBridgeHandlers(
       // onSessionList — incremental merge, preserves pending placeholders, deduplicates
@@ -873,9 +916,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
 
     // Stale cleanup: every 30s, remove pending placeholders older than 2 minutes
-    setInterval(() => {
+    if (staleCleanupInterval) clearInterval(staleCleanupInterval);
+    staleCleanupInterval = setInterval(() => {
       const now = Date.now();
-      const pending = get().pendingSessions;
+      const pending = new Map(get().pendingSessions); // copy before mutating
       const stale: string[] = [];
       for (const [pendingId, entry] of pending) {
         if (now - new Date(entry.createdAt).getTime() > 120_000) {
@@ -896,7 +940,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               newRemoteSessions[pubkeyHex] = filtered;
             }
           }
-          return { remoteSessions: newRemoteSessions, pendingSessions: new Map(pending) };
+          return { remoteSessions: newRemoteSessions, pendingSessions: pending };
         });
       }
     }, 30_000);

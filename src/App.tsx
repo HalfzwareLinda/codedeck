@@ -4,6 +4,7 @@ import { useSessionStore } from './stores/sessionStore';
 import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { parsePublicKey } from './services/nostrService';
+import { reconnectAllMachines } from './services/bridgeService';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import * as nip19 from 'nostr-tools/nip19';
 import type { RemoteMachine } from './types';
@@ -76,7 +77,7 @@ export default function App() {
     });
   }, []);
 
-  // Reconnect DM subscription when app returns to foreground
+  // Reconnect DM + bridge subscriptions when app returns to foreground
   useEffect(() => {
     const onVisibilityChange = () => {
       const dmState = useDmStore.getState();
@@ -86,6 +87,11 @@ export default function App() {
         dmState.disconnect();
       } else {
         dmState.connect();
+        // Re-establish bridge subscriptions — Android kills WebSockets after ~30s background
+        const { machines } = useSessionStore.getState();
+        if (machines.length > 0) {
+          reconnectAllMachines(machines);
+        }
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);

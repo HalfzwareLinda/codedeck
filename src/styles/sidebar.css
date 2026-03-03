@@ -131,6 +131,16 @@
   flex-shrink: 0;
 }
 
+.session-card-bypass {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  padding: 0 3px;
+  flex-shrink: 0;
+}
+
 .status-dot {
   width: 10px;
   height: 10px;

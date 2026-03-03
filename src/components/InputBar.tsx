@@ -139,16 +139,19 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
     }
   };
 
-  const modeButton = (m: AgentMode, label: string) => {
-    const isActive = mode === m;
-    return (
-      <button
-        className={`mode-btn ${isActive ? 'active' : 'inactive'}`}
-        onClick={() => setMode(sessionId, m)}
-      >
-        {label}
-      </button>
-    );
+  const MODE_CYCLE: AgentMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
+  const MODE_LABELS: Record<AgentMode, string> = {
+    default: 'DEFAULT',
+    acceptEdits: 'EDITS',
+    plan: 'PLAN',
+    bypassPermissions: 'BYPASS',
+  };
+
+  const cycleMode = () => {
+    const current = mode ?? 'default';
+    const idx = MODE_CYCLE.indexOf(current);
+    const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
+    setMode(sessionId, next);
   };
 
   const canSend = (text.trim() || pendingImage) && !sending;
@@ -235,8 +238,9 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
         />
 
         <div className="right-controls">
-          {modeButton('auto', 'BUILD')}
-          {modeButton('plan', 'PLAN')}
+          <button className="mode-btn active" onClick={cycleMode}>
+            {MODE_LABELS[mode ?? 'default']}
+          </button>
         </div>
       </div>
     </div>
