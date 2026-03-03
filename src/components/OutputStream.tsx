@@ -196,6 +196,11 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
+
+  // Tool-specific "always" label: WebFetch/WebSearch use per-domain allowlists
+  const isWebTool = item.toolName === 'WebFetch' || item.toolName === 'WebSearch';
+  const alwaysLabel = isWebTool ? 'Allow domain' : 'Always';
+
   if (responded) {
     return (
       <div className="permission-request-card permission-request-answered">
@@ -218,7 +223,7 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
           Allow
         </button>
         <button className="btn-always" onClick={() => respond(true, 'always')}>
-          Always
+          {alwaysLabel}
         </button>
         <button className="btn-deny" onClick={() => respond(false)}>
           Deny
