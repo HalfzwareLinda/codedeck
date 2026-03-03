@@ -37,6 +37,7 @@ type StatusHandler = (machine: string, status: 'connected' | 'disconnected' | 'c
 type SessionPendingHandler = (pendingId: string, machine: string, createdAt: string) => void;
 type SessionReadyHandler = (pendingId: string, session: RemoteSessionInfo) => void;
 type SessionFailedHandler = (pendingId: string, reason: string) => void;
+type InputFailedHandler = (sessionId: string, reason: 'no-terminal' | 'expired') => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -48,6 +49,7 @@ let onStatus: StatusHandler | null = null;
 let onSessionPending: SessionPendingHandler | null = null;
 let onSessionReady: SessionReadyHandler | null = null;
 let onSessionFailed: SessionFailedHandler | null = null;
+let onInputFailed: InputFailedHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -83,6 +85,7 @@ export function setBridgeHandlers(
   sessionPendingHandler?: SessionPendingHandler,
   sessionReadyHandler?: SessionReadyHandler,
   sessionFailedHandler?: SessionFailedHandler,
+  inputFailedHandler?: InputFailedHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
@@ -91,6 +94,7 @@ export function setBridgeHandlers(
   onSessionPending = sessionPendingHandler ?? null;
   onSessionReady = sessionReadyHandler ?? null;
   onSessionFailed = sessionFailedHandler ?? null;
+  onInputFailed = inputFailedHandler ?? null;
 }
 
 /**
@@ -329,6 +333,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string }, _machine:
         break;
       case 'session-failed':
         onSessionFailed?.(msg.pendingId, msg.reason);
+        break;
+      case 'input-failed':
+        onInputFailed?.(msg.sessionId, msg.reason);
         break;
     }
   } catch (err) {

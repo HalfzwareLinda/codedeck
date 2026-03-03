@@ -97,6 +97,7 @@ export interface RemoteSessionInfo {
   lineCount: number;
   title: string | null;
   project: string;
+  hasTerminal?: boolean;
 }
 
 export interface RemoteOutputEntry {
@@ -112,7 +113,8 @@ export type BridgeInboundMessage =
   | { type: 'history'; sessionId: string; entries: Array<{ seq: number; entry: RemoteOutputEntry }>; totalEntries: number; fromSeq: number; toSeq: number; chunkIndex?: number; totalChunks?: number; requestId?: string }
   | { type: 'session-pending'; pendingId: string; machine: string; createdAt: string }
   | { type: 'session-ready'; pendingId: string; session: RemoteSessionInfo }
-  | { type: 'session-failed'; pendingId: string; reason: string };
+  | { type: 'session-failed'; pendingId: string; reason: string }
+  | { type: 'input-failed'; sessionId: string; reason: 'no-terminal' | 'expired' };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }

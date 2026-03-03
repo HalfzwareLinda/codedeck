@@ -333,6 +333,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       entry_type: 'user_message',
       content: text || (image ? `[Image: ${image.filename}]` : ''),
       timestamp: new Date().toISOString(),
+      ...(image ? { metadata: { imageFilename: image.filename } } : {}),
     });
 
     // Set title from first message if session still has a hex slug or no title
@@ -575,6 +576,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               refreshing: false,
             };
           });
+
+          // Persist remote session metadata (titles, projects, etc.) for crash recovery
+          persistSet('codedeck_remote_sessions', get().remoteSessions);
+
+          // Auto-request history for sessions with no cached output (crash recovery)
+          const currentOutputs = get().outputs;
+          const currentLoading = get().historyLoading;
+          const sessionsNeedingHistory = merged
+            .filter(s => !s.id.startsWith('pending:') && (!currentOutputs[s.id] || currentOutputs[s.id].length === 0) && !currentLoading[s.id])
+            .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
+            .slice(0, 10); // limit to 10 most recent
+
+          for (let i = 0; i < sessionsNeedingHistory.length; i++) {
+            const s = sessionsNeedingHistory[i];
+            setTimeout(() => {
+              get().requestSessionHistory(s.id);
+            }, i * 500); // 500ms stagger to avoid flooding
+          }
         }
       },
       // onOutput
@@ -754,6 +773,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             pendingSessions: new Map(pending),
           };
         });
+        persistSet('codedeck_remote_sessions', get().remoteSessions);
       },
       // onSessionFailed — remove placeholder
       (pendingId, reason) => {
@@ -780,7 +800,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           };
         });
       },
+      // onInputFailed — show error in session output
+      (sessionId, reason) => {
+        const message = reason === 'no-terminal'
+          ? 'No active terminal for this session. The Claude Code terminal may have closed — try creating a new session.'
+          : 'Input delivery timed out. The bridge could not route your message.';
+        get().addOutput(sessionId, {
+          entry_type: 'error',
+          content: message,
+          timestamp: new Date().toISOString(),
+        });
+      },
     );
+
+    // Restore persisted remote session metadata (titles, etc.) before connecting
+    const savedSessions = await persistGet<Record<string, RemoteSessionInfo[]>>('codedeck_remote_sessions');
+    if (savedSessions && typeof savedSessions === 'object') {
+      set({ remoteSessions: savedSessions });
+    }
 
     // Reconnect to all saved machines
     const saved = await persistGet<RemoteMachine[]>('codedeck_machines');

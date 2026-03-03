@@ -21,7 +21,7 @@ let store: TauriStore | null = null;
 let initPromise: Promise<void> | null = null;
 
 /** Keys that may have data in localStorage from before the Tauri store migration. */
-const MIGRATE_KEYS = ['codedeck_machines', 'codedeck_dm'];
+const MIGRATE_KEYS = ['codedeck_machines', 'codedeck_dm', 'codedeck_remote_sessions'];
 
 async function init(): Promise<void> {
   if (store) return;

@@ -22,10 +22,17 @@ const DEFAULT_ROW_HEIGHT = 40;
 const remarkPlugins = [remarkGfm];
 
 function UserMessageBubble({ entry }: { entry: OutputEntry }) {
+  const imageFilename = entry.metadata?.imageFilename as string | undefined;
   return (
     <div className="user-message-row">
       <div className="user-message-bubble">
         <Markdown remarkPlugins={remarkPlugins}>{entry.content}</Markdown>
+        {imageFilename && (
+          <div className="user-message-image-tag">
+            <span className="user-message-image-icon">&#x1F4CE;</span>
+            {imageFilename.length > 28 ? imageFilename.slice(0, 25) + '...' : imageFilename}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -309,6 +316,26 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
   // Keep refs in sync so the ResizeObserver callback reads fresh values
   autoScrollRef.current = autoScroll;
   displayLenRef.current = display.length;
+
+  // Reset scroll state on session switch — ensures new sessions open at the bottom
+  useEffect(() => {
+    setAutoScroll(true);
+    autoScrollRef.current = true;
+    setShowPill(false);
+    setPrevCount(0);
+
+    const t1 = setTimeout(() => {
+      if (listRef.current && displayLenRef.current > 0) {
+        listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
+      }
+    }, 50);
+    const t2 = setTimeout(() => {
+      if (listRef.current && displayLenRef.current > 0) {
+        listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
+      }
+    }, 300);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show "New output" pill when new entries arrive while user is scrolled away
   useEffect(() => {
