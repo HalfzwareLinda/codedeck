@@ -6,6 +6,7 @@ import {
   setBridgeHandlers,
   connectToMachine,
   disconnectFromMachine,
+  reconnectAllMachines,
   sendRemoteInput,
   sendRemoteImage,
   sendRemoteModeChange,
@@ -61,6 +62,8 @@ interface SessionStore {
   createRemoteSession: (machine: RemoteMachine) => Promise<void>;
   respondRemotePermission: (sessionId: string, requestId: string, allow: boolean, modifier?: 'always' | 'never') => Promise<void>;
   sendRemoteKeypress: (sessionId: string, key: string) => Promise<void>;
+  /** Re-establish bridge subscriptions for all machines (call on foreground resume). */
+  reconnectBridge: () => void;
   /** Track that a card (permission, plan approval, question) has been responded to.
    *  Keyed by tool_use_id to survive virtualized list unmount/remount. */
   respondedCards: Set<string>;
@@ -94,6 +97,9 @@ let eventUnlisteners: Array<() => void> = [];
 
 /** Tracks sessions for which auto-history-request has already been dispatched. */
 const autoHistoryRequested = new Set<string>();
+
+/** Tracks seen bridgeSeq numbers per session for deduplication. */
+const seenBridgeSeqs = new Map<string, Set<number>>();
 
 /** Debounced persist for remote session metadata. Strips volatile fields (hasTerminal). */
 let persistSessionsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -292,14 +298,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     let updated: OutputEntry[];
 
     if (seq !== undefined) {
+      // Dedup via Set — decoupled from binary search ordering, trivially correct
+      let seen = seenBridgeSeqs.get(sessionId);
+      if (!seen) { seen = new Set(); seenBridgeSeqs.set(sessionId, seen); }
+      if (seen.has(seq)) { return state; }
+      seen.add(seq);
+
       const insertIdx = findInsertIndex(existing, seq);
-      // Dedup: skip if an entry with the same bridgeSeq already exists at this position
-      if (insertIdx < existing.length) {
-        const existingSeq = existing[insertIdx].metadata?.bridgeSeq as number | undefined;
-        if (existingSeq === seq) {
-          return state; // duplicate — skip
-        }
-      }
       updated = [...existing.slice(0, insertIdx), entry, ...existing.slice(insertIdx)];
     } else {
       updated = [...existing, entry];
@@ -566,6 +571,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         delete cleanedUsage[id];
         delete cleanedLoading[id];
         autoHistoryRequested.delete(id);
+        seenBridgeSeqs.delete(id);
       }
       return {
         machines: state.machines.filter(m => m.pubkeyHex !== pubkeyHex),
@@ -757,7 +763,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // 2-minute client-side cleanup timer
         const timeoutId = setTimeout(() => {
           console.warn(`[SessionStore] Pending session ${pendingId} expired (2min cleanup)`);
-          const pending = get().pendingSessions;
+          const pending = new Map(get().pendingSessions); // copy before mutating
           if (pending.has(pendingId)) {
             pending.delete(pendingId);
             set((state) => {
@@ -767,7 +773,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                   ...state.remoteSessions,
                   [machine.pubkeyHex]: existing.filter(s => s.id !== `pending:${pendingId}`),
                 },
-                pendingSessions: new Map(pending),
+                pendingSessions: pending,
               };
             });
           }
@@ -801,7 +807,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       },
       // onSessionReady — replace placeholder with real session, set active, switch panel
       (pendingId, session) => {
-        const pending = get().pendingSessions;
+        const pending = new Map(get().pendingSessions); // copy before mutating
         const entry = pending.get(pendingId);
         if (entry) {
           clearTimeout(entry.timeoutId);
@@ -849,7 +855,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // onSessionFailed — remove placeholder
       (pendingId, reason) => {
         console.warn(`[SessionStore] Session failed: ${pendingId} (${reason})`);
-        const pending = get().pendingSessions;
+        const pending = new Map(get().pendingSessions); // copy before mutating
         const entry = pending.get(pendingId);
         if (entry) {
           clearTimeout(entry.timeoutId);
@@ -1016,6 +1022,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await sendRemoteKeypress(machine, sessionId, key);
     } catch (e) {
       console.error('[SessionStore] Failed to send keypress:', e);
+    }
+  },
+
+  reconnectBridge: () => {
+    const { machines } = get();
+    if (machines.length > 0) {
+      reconnectAllMachines(machines);
     }
   },
 

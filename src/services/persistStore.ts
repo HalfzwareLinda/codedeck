@@ -102,7 +102,9 @@ export async function persistSet(key: string, value: unknown): Promise<void> {
   // Fallback: localStorage
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch { /* full or unavailable */ }
+  } catch (e) {
+    console.warn('[PersistStore] localStorage.setItem failed (quota exceeded?):', e);
+  }
 }
 
 export async function persistDelete(key: string): Promise<void> {

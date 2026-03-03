@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
@@ -235,9 +235,11 @@ export default function Sidebar() {
   }, [refreshing, requestRefreshSessions, updateIndicator]);
 
   // Reset triggered state when refreshing completes
-  if (triggered && !refreshing) {
-    setTriggered(false);
-  }
+  useEffect(() => {
+    if (triggered && !refreshing) {
+      setTriggered(false);
+    }
+  }, [triggered, refreshing]);
 
   // Group local sessions
   const groups: Record<string, Session[]> = {};

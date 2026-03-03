@@ -4,7 +4,6 @@ import { useSessionStore } from './stores/sessionStore';
 import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { parsePublicKey } from './services/nostrService';
-import { reconnectAllMachines } from './services/bridgeService';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import * as nip19 from 'nostr-tools/nip19';
 import type { RemoteMachine } from './types';
@@ -12,6 +11,7 @@ import Sidebar from './components/Sidebar';
 import MainPanel from './components/MainPanel';
 import SettingsModal from './components/SettingsModal';
 import NewSessionModal from './components/NewSessionModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import './styles/global.css';
 
 function handleDeepLink(url: string): void {
@@ -28,7 +28,7 @@ function handleDeepLink(url: string): void {
     if (!pubkeyHex) return;
 
     const relays = relaysParam
-      ? relaysParam.split(',').filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
+      ? relaysParam.split(',').map(r => decodeURIComponent(r)).filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
       : ['wss://relay.damus.io', 'wss://nos.lol'];
 
     const machine: RemoteMachine = {
@@ -88,10 +88,7 @@ export default function App() {
       } else {
         dmState.connect();
         // Re-establish bridge subscriptions — Android kills WebSockets after ~30s background
-        const { machines } = useSessionStore.getState();
-        if (machines.length > 0) {
-          reconnectAllMachines(machines);
-        }
+        useSessionStore.getState().reconnectBridge();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -126,6 +123,7 @@ export default function App() {
       background: 'var(--bg-black)',
     }}>
       {/* Sidebar - inline on wide, drawer on narrow */}
+      <ErrorBoundary>
       {isWide ? (
         <Sidebar />
       ) : (
@@ -154,11 +152,14 @@ export default function App() {
           </div>
         </>
       )}
+      </ErrorBoundary>
 
       <MainPanel isWide={isWide} />
 
+      <ErrorBoundary>
       {settingsOpen && <SettingsModal />}
       {newSessionOpen && <NewSessionModal />}
+      </ErrorBoundary>
     </div>
   );
 }

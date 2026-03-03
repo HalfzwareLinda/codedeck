@@ -207,6 +207,17 @@ export const useDmStore = create<DmStore>((set, get) => ({
       get().addMessage(msg);
     } catch (e) {
       console.error('Failed to send DM:', e);
+      // Show failed message in UI so user sees the failure
+      const ownPubkey = nostr.getPubkeyHex(parseHexToBytes(sk));
+      const failedMsg: DmMessage = {
+        id: crypto.randomUUID(),
+        conversation_id: nostr.conversationId(ownPubkey, recipientPubkey),
+        sender_pubkey: ownPubkey,
+        content,
+        timestamp: new Date().toISOString(),
+        status: 'failed',
+      };
+      get().addMessage(failedMsg);
     }
   },
 

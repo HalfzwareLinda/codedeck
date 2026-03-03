@@ -116,28 +116,37 @@ export function connectToMachine(machine: RemoteMachine): void {
 
   onStatus?.(machine.hostname, 'connecting');
 
-  // Use `since` filter to avoid replaying all stored events on reconnect
+  // Use `since` filter to avoid replaying all stored events on reconnect.
+  // On first connect, fall back to a 5-minute window rather than fetching
+  // everything the relay has ever stored for this author.
   const lastSeen = lastSeenTimestamps.get(machine.pubkeyHex);
+  const since = lastSeen && lastSeen > 0
+    ? lastSeen - 5  // 5s grace before last-seen
+    : Math.floor(Date.now() / 1000) - 300;  // fallback: 5-minute window
   const filter: Record<string, unknown> = {
     kinds: [OUTPUT_EVENT_KIND, SESSION_LIST_EVENT_KIND],
     '#p': [ownPubkeyHex],
     authors: [machine.pubkeyHex],
+    since,
   };
-  if (lastSeen && lastSeen > 0) {
-    filter.since = lastSeen - 5; // 5s grace window
-  }
+
+  // Capture generation so callbacks become no-ops after a key change / re-init
+  const myGen = generation;
 
   const sub = pool.subscribeMany(
     machine.relays,
     filter as Parameters<SimplePool['subscribeMany']>[1],
     {
       onevent(event) {
+        if (myGen !== generation) { return; }
         handleBridgeEvent(event, machine);
       },
       oneose() {
+        if (myGen !== generation) { return; }
         onStatus?.(machine.hostname, 'connected');
       },
       onclose(reasons) {
+        if (myGen !== generation) { return; }
         console.warn('[Bridge] Subscription closed:', reasons);
         onStatus?.(machine.hostname, 'connecting');
       },
@@ -312,8 +321,11 @@ async function publishToMachine(machine: RemoteMachine, msg: BridgeOutboundMessa
     return false;
   }
 
+  const myGen = generation;
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      if (myGen !== generation) { return false; } // pool was replaced during re-init
       const json = JSON.stringify(msg);
       const conversationKey = getConversationKey(ownSecretKeyBytes, machine.pubkeyHex);
       const ciphertext = encrypt(json, conversationKey);
@@ -326,7 +338,7 @@ async function publishToMachine(machine: RemoteMachine, msg: BridgeOutboundMessa
       }, ownSecretKeyBytes);
 
       // pool.publish returns Promise<string>[] — await each relay individually
-      if (!pool) { return false; } // pool may have been destroyed during encrypt
+      if (!pool || myGen !== generation) { return false; } // pool may have been destroyed
       const results = pool.publish(machine.relays, event);
       const outcomes = await Promise.allSettled(results);
       const anySuccess = outcomes.some(o => o.status === 'fulfilled');

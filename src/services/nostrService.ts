@@ -9,8 +9,8 @@ let subscription: ReturnType<SimplePool['subscribeMany']> | null = null;
 let ownPubkey: string | null = null;
 let ownSkBytes: Uint8Array | null = null;
 
-/** Set of rumor IDs we sent ourselves — skip these from relay delivery. */
-const sentRumorIds = new Set<string>();
+/** Rumor IDs we sent — skip these from relay delivery. Map<id, timestamp> for TTL eviction. */
+const sentRumorIds = new Map<string, number>();
 
 type MessageHandler = (msg: DmMessage) => void;
 let onMessage: MessageHandler | null = null;
@@ -186,7 +186,11 @@ export async function sendDirectMessage(
   const rumor = createRumor(rumorTemplate, senderSk);
 
   // Track this rumor ID so we skip the self-wrap when it arrives from relay
-  sentRumorIds.add(rumor.id);
+  sentRumorIds.set(rumor.id, Date.now());
+  // Evict entries older than 10 minutes to prevent unbounded growth
+  for (const [id, ts] of sentRumorIds) {
+    if (Date.now() - ts > 600_000) sentRumorIds.delete(id);
+  }
 
   // Seal + wrap for recipient
   const sealForRecipient = createSeal(rumor, senderSk, recipientPubkey);
