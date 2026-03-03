@@ -37,6 +37,7 @@ tauri-plugin-stronghold = "2"
 tauri-plugin-store = "2"
 tauri-plugin-speech-recognizer = { path = "../tauri-plugin-speech-recognizer" }
 tauri-plugin-deep-link = "2"
+tauri-plugin-notification = "2"
 
 [profile.dev.package.scrypt]
 opt-level = 3

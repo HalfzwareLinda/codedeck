@@ -4,6 +4,7 @@ import { useSessionStore } from './stores/sessionStore';
 import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { parsePublicKey } from './services/nostrService';
+import { initNotifications, setAppHidden } from './services/notificationService';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import * as nip19 from 'nostr-tools/nip19';
 import type { RemoteMachine } from './types';
@@ -56,6 +57,7 @@ export default function App() {
     sessionActions.loadSessions();
     sessionActions.loadConfig();
     sessionActions.initEventListeners();
+    initNotifications();
 
     // Load persisted DMs first (includes Nostr private key), then init bridge
     useDmStore.getState().loadPersisted().then(() => {
@@ -83,6 +85,7 @@ export default function App() {
       const dmState = useDmStore.getState();
       if (!dmState.nostrConfig.private_key_hex) return;
 
+      setAppHidden(document.hidden);
       if (document.hidden) {
         dmState.disconnect();
       } else {

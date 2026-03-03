@@ -17,6 +17,7 @@ import {
   sendRefreshRequest,
 } from '../services/bridgeService';
 import { persistGet, persistSet } from '../services/persistStore';
+import { notifyIfNeeded } from '../services/notificationService';
 
 interface SessionStore {
   sessions: Session[];
@@ -709,6 +710,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           metadata: { ...entry.metadata, bridgeSeq: _seq },
         };
         get().addOutput(sessionId, mapped);
+
+        // Fire OS notification for interactive entries when app is backgrounded
+        const special = entry.metadata?.special as string | undefined;
+        if (special === 'permission_request' || special === 'plan_approval' || special === 'ask_question') {
+          notifyIfNeeded({
+            sessionId,
+            activeSessionId: get().activeSessionId,
+            type: special,
+            toolName: special === 'permission_request' ? (entry.metadata?.toolName as string) : undefined,
+          });
+        }
       },
       // onStatus
       (machineName, status) => {
