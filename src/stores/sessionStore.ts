@@ -669,6 +669,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // Persist remote session metadata (debounced, strips volatile fields)
           debouncedPersistRemoteSessions(get);
 
+          // Reconcile permission modes: if the bridge observed a mode (from JSONL)
+          // that differs from the phone's optimistic tracking, trust the bridge
+          const currentModes = get().remoteSessionModes;
+          const modeUpdates: Record<string, AgentMode> = {};
+          for (const s of incomingSessions) {
+            if (s.permissionMode && currentModes[s.id] && currentModes[s.id] !== s.permissionMode) {
+              modeUpdates[s.id] = s.permissionMode;
+            }
+          }
+          if (Object.keys(modeUpdates).length > 0) {
+            set((state) => ({
+              remoteSessionModes: { ...state.remoteSessionModes, ...modeUpdates },
+            }));
+          }
+
           // Auto-request history for sessions with no cached output (crash recovery)
           const currentOutputs = get().outputs;
           const currentLoading = get().historyLoading;

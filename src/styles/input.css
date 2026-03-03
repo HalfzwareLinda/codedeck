@@ -70,6 +70,11 @@
   border: 1px solid var(--border-medium);
 }
 
+.mode-btn.mode-cooldown {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .send-btn {
   height: 32px;
   padding: 0 12px;

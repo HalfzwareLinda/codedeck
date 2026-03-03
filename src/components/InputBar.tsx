@@ -150,11 +150,16 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
     bypassPermissions: 'BYPASS',
   };
 
+  const [modeCooldown, setModeCooldown] = useState(false);
+
   const cycleMode = () => {
+    if (modeCooldown) return;
     const current = mode ?? 'default';
     const idx = MODE_CYCLE.indexOf(current);
     const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
     setMode(sessionId, next);
+    setModeCooldown(true);
+    setTimeout(() => setModeCooldown(false), 600);
   };
 
   const canSend = (text.trim() || pendingImage) && !sending;
@@ -193,7 +198,7 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
 
       <div className="input-bar">
         <div className="left-controls">
-          <button className="mode-btn active" onClick={cycleMode}>
+          <button className={`mode-btn active${modeCooldown ? ' mode-cooldown' : ''}`} onClick={cycleMode}>
             {MODE_LABELS[mode ?? 'default']}
           </button>
         </div>
