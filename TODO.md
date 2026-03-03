@@ -36,6 +36,16 @@
 - [x] **Periodic rumor ID cleanup** — `nostrService.ts` — 5-minute interval evicts stale `sentRumorIds`.
 - [x] **DM profile fetch timeout** — `nostrService.ts` — `fetchProfileName()` wrapped in `Promise.race()` with 5s timeout.
 
+## Future UX Improvements
+
+- [ ] **Session badge/counter for background activity** — When viewing one session, show a badge on other sessions in the sidebar that have received new output since last viewed.
+
+- [ ] **Better error surfacing** — Several silent failures (gift-wrap decryption, deep link init, API key timeout) should show toast notifications or inline error messages instead of logging to console.
+
+- [ ] **TodoWrite checklist rendering** — Render Claude's `TodoWrite` tool output as a proper checklist card in the output stream instead of raw tool_use content.
+
+- [ ] **Session pinning / archiving** — Pin active sessions to the top of the sidebar, archive old ones to reduce clutter.
+
 ## Future Protocol Improvement
 
 - [ ] **Consider ephemeral event kind for real-time output** — Currently kind 4515 (regular/stored) is used for output events, which means relays store every output event and replay them all on reconnect (newest-first, requiring sorted insertion on the phone). A cleaner design: use an ephemeral kind (20000-29999) for the real-time stream so relays don't store it, and rely solely on the existing `history-request` pattern for catch-up. This would eliminate redundant replay, reduce relay storage, and remove the need for sorted insertion. Trade-off: breaking change to both sides of the protocol.
