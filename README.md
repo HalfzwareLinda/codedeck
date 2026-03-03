@@ -6,7 +6,7 @@ Designed for the Google Pixel 9 Pro Fold inner display (landscape), but works on
 
 ## Download
 
-**[Download CodeDeck v0.6.3 for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/download/v0.6.3/codedeck-v0.6.3-bae64a6.apk)** — ~20 MB, arm64
+**[Download CodeDeck v0.6.3 for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/download/v0.6.3/codedeck-v0.6.3-8c59ce0.apk)** — ~20 MB, arm64
 
 Requirements: Android 7.0+, ARM64 device (Pixel 9 Pro Fold, etc.).
 
