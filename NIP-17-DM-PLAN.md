@@ -137,7 +137,7 @@ Split the sidebar into two regions using flexbox:
 - Header: conversation name + participant info
 - Message list: scrollable div, sent messages right-aligned, received left-aligned
 - Input bar at bottom: textarea, Enter to send, Shift+Enter for newline
-- Auto-scroll to bottom on new messages
+- Instant-scroll to bottom on new messages (no smooth animation)
 
 **Modify** `src/components/MainPanel.tsx`
 - Check `panelMode` from uiStore
