@@ -65,9 +65,10 @@ interface SessionStore {
   /** Re-establish bridge subscriptions for all machines (call on foreground resume). */
   reconnectBridge: () => void;
   /** Track that a card (permission, plan approval, question) has been responded to.
-   *  Keyed by tool_use_id to survive virtualized list unmount/remount. */
-  respondedCards: Set<string>;
-  markCardResponded: (cardId: string) => void;
+   *  Map<sessionId, Set<cardId>> — structurally prevents cross-session leakage. */
+  respondedCards: Map<string, Set<string>>;
+  markCardResponded: (sessionId: string, cardId: string) => void;
+  isCardResponded: (sessionId: string, cardId: string) => boolean;
 }
 
 const defaultConfig: AppConfig = {
@@ -98,8 +99,10 @@ let eventUnlisteners: Array<() => void> = [];
 /** Tracks sessions for which auto-history-request has already been dispatched. */
 const autoHistoryRequested = new Set<string>();
 
-/** Tracks seen bridgeSeq numbers per session for deduplication. */
+/** Capped dedup set for bridgeSeq per session. Bounded to MAX_SEQ_SET_SIZE
+ *  entries — when exceeded, entries below the high-water mark are pruned. */
 const seenBridgeSeqs = new Map<string, Set<number>>();
+const MAX_SEQ_SET_SIZE = 1000;
 
 /** Debounced persist for remote session metadata. Strips volatile fields (hasTerminal). */
 let persistSessionsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -120,7 +123,10 @@ function debouncedPersistRemoteSessions(getState: () => { remoteSessions: Record
   }, 2_000);
 }
 
+/** Keyed by requestId (not sessionId) — eliminates races when a second
+ *  history-request is sent before the first completes. */
 const historyChunkTrackers = new Map<string, {
+  sessionId: string;
   totalChunks: number;
   receivedCount: number;
   timeoutId: ReturnType<typeof setTimeout>;
@@ -235,14 +241,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   historyLoading: {},
   refreshing: false,
   pendingSessions: new Map(),
-  respondedCards: new Set(),
+  respondedCards: new Map(),
 
-  markCardResponded: (cardId) => set((state) => {
-    if (state.respondedCards.has(cardId)) return state;
-    const next = new Set(state.respondedCards);
-    next.add(cardId);
+  markCardResponded: (sessionId, cardId) => set((state) => {
+    const existing = state.respondedCards.get(sessionId);
+    if (existing?.has(cardId)) return state;
+    const next = new Map(state.respondedCards);
+    const sessionSet = new Set(existing);
+    sessionSet.add(cardId);
+    next.set(sessionId, sessionSet);
     return { respondedCards: next };
   }),
+
+  isCardResponded: (sessionId, cardId) => {
+    return get().respondedCards.get(sessionId)?.has(cardId) ?? false;
+  },
 
   setActiveSession: (id) => set((state) => {
     if (!state.unreadSessions.has(id)) return { activeSessionId: id };
@@ -298,11 +311,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     let updated: OutputEntry[];
 
     if (seq !== undefined) {
-      // Dedup via Set — decoupled from binary search ordering, trivially correct
+      // Dedup via capped Set (bounded to MAX_SEQ_SET_SIZE entries)
       let seen = seenBridgeSeqs.get(sessionId);
       if (!seen) { seen = new Set(); seenBridgeSeqs.set(sessionId, seen); }
       if (seen.has(seq)) { return state; }
       seen.add(seq);
+      // Prune: drop entries below (max - MAX_SEQ_SET_SIZE) when set grows too large
+      if (seen.size > MAX_SEQ_SET_SIZE) {
+        let maxSeq = 0;
+        for (const s of seen) { if (s > maxSeq) maxSeq = s; }
+        const cutoff = maxSeq - MAX_SEQ_SET_SIZE;
+        for (const s of seen) { if (s <= cutoff) seen.delete(s); }
+      }
 
       const insertIdx = findInsertIndex(existing, seq);
       updated = [...existing.slice(0, insertIdx), entry, ...existing.slice(insertIdx)];
@@ -588,15 +608,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   initBridgeService: async (privateKeyHex) => {
     initBridge(privateKeyHex);
 
-    // Skip re-registration of handlers if already initialized
+    // Always re-register handlers (they're just function pointers referencing
+    // get/set closures, so re-registration is safe and ensures handlers use
+    // the latest key after account switches)
     if (bridgeInitialized) {
-      // Just reconnect machines with the (potentially new) key
-      const saved = await persistGet<RemoteMachine[]>('codedeck_machines');
-      if (saved && Array.isArray(saved)) {
-        set({ machines: saved });
-        for (const machine of saved) { connectToMachine(machine); }
-      }
-      return;
+      // Clean up the previous stale cleanup interval before re-registering
+      if (staleCleanupInterval) { clearInterval(staleCleanupInterval); staleCleanupInterval = null; }
     }
     bridgeInitialized = true;
 
@@ -728,28 +745,31 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           return;
         }
 
-        // Chunked response: track progress, sort after each chunk
-        let tracker = historyChunkTrackers.get(sessionId);
+        // Chunked response: track progress by requestId (race-free)
+        const trackingKey = _requestId ?? sessionId; // fallback for old bridges without requestId
+        let tracker = historyChunkTrackers.get(trackingKey);
         if (!tracker) {
-          tracker = { totalChunks, receivedCount: 0, timeoutId: 0 as unknown as ReturnType<typeof setTimeout> };
-          historyChunkTrackers.set(sessionId, tracker);
+          tracker = { sessionId, totalChunks, receivedCount: 0, timeoutId: 0 as unknown as ReturnType<typeof setTimeout> };
+          historyChunkTrackers.set(trackingKey, tracker);
         }
 
         tracker.receivedCount++;
         sortOutputsBySeq(sessionId, set);
 
-        // Reset idle timeout on every chunk (adaptive)
+        // Reset idle timeout on every chunk
         clearTimeout(tracker.timeoutId);
 
         if (tracker.receivedCount >= tracker.totalChunks) {
           // All chunks received
-          historyChunkTrackers.delete(sessionId);
+          historyChunkTrackers.delete(trackingKey);
           clearHistoryLoading(sessionId, set);
         } else {
           // Set idle timeout — clear loading if no more chunks arrive
+          const key = trackingKey;
           tracker.timeoutId = setTimeout(() => {
-            console.warn(`[SessionStore] History timeout for ${sessionId}: received ${historyChunkTrackers.get(sessionId)?.receivedCount ?? 0}/${totalChunks} chunks`);
-            historyChunkTrackers.delete(sessionId);
+            const t = historyChunkTrackers.get(key);
+            console.warn(`[SessionStore] History timeout for ${sessionId}: received ${t?.receivedCount ?? 0}/${totalChunks} chunks`);
+            historyChunkTrackers.delete(key);
             clearHistoryLoading(sessionId, set);
           }, HISTORY_IDLE_TIMEOUT_MS);
         }
@@ -890,17 +910,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
         // Clear responded state for permission cards so user can retry
         set((state) => {
-          const outputs = state.outputs[sessionId] || [];
-          const sessionCardIds = new Set<string>();
-          for (const entry of outputs) {
-            const id = entry.metadata?.tool_use_id as string | undefined;
-            if (id && entry.metadata?.special === 'permission_request') {
-              sessionCardIds.add(id);
-            }
-          }
-          if (sessionCardIds.size === 0) return {};
-          const next = new Set(state.respondedCards);
-          for (const id of sessionCardIds) next.delete(id);
+          if (!state.respondedCards.has(sessionId)) return {};
+          const next = new Map(state.respondedCards);
+          next.delete(sessionId);
           return { respondedCards: next };
         });
       },

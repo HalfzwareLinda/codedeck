@@ -11,6 +11,19 @@ let ownSkBytes: Uint8Array | null = null;
 
 /** Rumor IDs we sent — skip these from relay delivery. Map<id, timestamp> for TTL eviction. */
 const sentRumorIds = new Map<string, number>();
+const RUMOR_TTL_MS = 600_000; // 10 minutes
+
+/** Periodic cleanup of sentRumorIds (runs every 5 minutes regardless of send activity). */
+let rumorCleanupTimer: ReturnType<typeof setInterval> | null = null;
+function ensureRumorCleanup(): void {
+  if (rumorCleanupTimer) { return; }
+  rumorCleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [id, ts] of sentRumorIds) {
+      if (now - ts > RUMOR_TTL_MS) sentRumorIds.delete(id);
+    }
+  }, 300_000); // every 5 minutes
+}
 
 type MessageHandler = (msg: DmMessage) => void;
 let onMessage: MessageHandler | null = null;
@@ -92,6 +105,7 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
 
   console.log(`[Nostr] Connecting to relays:`, relays, `pubkey: ${ownPubkey.slice(0, 8)}...`);
   onStatus?.('connecting');
+  ensureRumorCleanup();
 
   // Enable auto-reconnect with exponential backoff (10s → 60s)
   pool = new SimplePool({ enableReconnect: true });
@@ -151,6 +165,7 @@ export function disconnect(): void {
   }
   ownPubkey = null;
   ownSkBytes = null;
+  if (rumorCleanupTimer) { clearInterval(rumorCleanupTimer); rumorCleanupTimer = null; }
   onStatus?.('disconnected');
 }
 
@@ -187,10 +202,6 @@ export async function sendDirectMessage(
 
   // Track this rumor ID so we skip the self-wrap when it arrives from relay
   sentRumorIds.set(rumor.id, Date.now());
-  // Evict entries older than 10 minutes to prevent unbounded growth
-  for (const [id, ts] of sentRumorIds) {
-    if (Date.now() - ts > 600_000) sentRumorIds.delete(id);
-  }
 
   // Seal + wrap for recipient
   const sealForRecipient = createSeal(rumor, senderSk, recipientPubkey);
@@ -271,7 +282,8 @@ export async function fetchProfileName(
 ): Promise<string | null> {
   const p = pool ?? new SimplePool();
   try {
-    const event = await p.get(relays, { kinds: [0], authors: [pubkeyHex] });
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000));
+    const event = await Promise.race([p.get(relays, { kinds: [0], authors: [pubkeyHex] }), timeout]);
     if (!event?.content) return null;
     const meta = JSON.parse(event.content);
     return meta.display_name || meta.name || null;

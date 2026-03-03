@@ -58,6 +58,10 @@ let ownPubkeyHex: string | null = null;
 // Track latest event timestamp per machine for `since` filter on reconnect
 const lastSeenTimestamps: Map<string, number> = new Map();
 
+// Track consecutive decryption failures per machine to detect key mismatch
+const consecutiveDecryptFailures: Map<string, number> = new Map();
+const DECRYPT_FAILURE_THRESHOLD = 5;
+
 /**
  * Initialize the bridge service with the phone's Nostr identity.
  */
@@ -377,6 +381,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
     const plaintext = decrypt(event.content, conversationKey);
     const msg: BridgeInboundMessage = JSON.parse(plaintext);
 
+    // Successful decrypt — reset failure counter
+    consecutiveDecryptFailures.set(_machine.pubkeyHex, 0);
+
     switch (msg.type) {
       case 'sessions':
         onSessionList?.(msg.machine, msg.sessions);
@@ -401,9 +408,15 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
         break;
     }
   } catch (err) {
-    // Don't change connection status on individual decrypt/parse failures —
-    // the subscription is still alive. Only relay connection drops should trigger 'disconnected'.
-    console.warn('[Bridge] Failed to decrypt/parse event:', err);
+    // Track consecutive failures — if many events fail in a row, the key is likely wrong
+    const prev = consecutiveDecryptFailures.get(_machine.pubkeyHex) ?? 0;
+    const count = prev + 1;
+    consecutiveDecryptFailures.set(_machine.pubkeyHex, count);
+    console.warn(`[Bridge] Failed to decrypt/parse event (${count}/${DECRYPT_FAILURE_THRESHOLD}):`, err);
+    if (count >= DECRYPT_FAILURE_THRESHOLD) {
+      onStatus?.(_machine.hostname, 'disconnected');
+      console.error(`[Bridge] ${count} consecutive decryption failures for ${_machine.hostname} — check Nostr keys`);
+    }
   }
 }
 

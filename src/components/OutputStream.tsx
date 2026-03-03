@@ -57,7 +57,7 @@ function ToolGroupEntry({
 }) {
   return (
     <div className="tool-group">
-      <button className="tool-group-header" onClick={onToggle}>
+      <button className="tool-group-header" onClick={onToggle} aria-expanded={expanded}>
         <span className={`tool-group-chevron${expanded ? ' tool-group-chevron-open' : ''}`}>
           &#x25B8;
         </span>
@@ -105,7 +105,7 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
 function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string; answered?: string; cardId?: string }) {
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
-  const responded = useSessionStore((s) => cardId ? s.respondedCards.has(cardId) : false);
+  const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
   if (answered) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
@@ -121,7 +121,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     );
   }
   const respond = (key: string) => {
-    if (cardId) markResponded(cardId);
+    if (cardId) markResponded(sessionId, cardId);
     sendKeypress(sessionId, key);
   };
   return (
@@ -143,7 +143,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const cardId = item.entry.metadata?.tool_use_id as string | undefined;
-  const responded = useSessionStore((s) => cardId ? s.respondedCards.has(cardId) : false);
+  const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
   if (item.answered) {
     return (
       <div className="question-card question-answered">
@@ -173,7 +173,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
               key={i}
               className="question-option-btn"
               onClick={() => {
-                if (cardId) markResponded(cardId);
+                if (cardId) markResponded(sessionId, cardId);
                 sendKeypress(sessionId, String(i + 1));
               }}
             >
@@ -192,10 +192,10 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
 function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDisplay; sessionId: string }) {
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
   const markResponded = useSessionStore((s) => s.markCardResponded);
-  const responded = useSessionStore((s) => s.respondedCards.has(item.requestId));
+  const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
   if (responded) {
     return (
-      <div className="plan-approval-bar plan-approval-answered">
+      <div className="permission-request-card permission-request-answered">
         <div className="plan-approval-label">{item.toolName}</div>
         <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
         <div className="plan-approval-label">Response sent...</div>
@@ -203,18 +203,18 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
     );
   }
   const respond = (allow: boolean, modifier?: 'always' | 'never') => {
-    markResponded(item.requestId);
+    markResponded(sessionId, item.requestId);
     respondRemotePermission(sessionId, item.requestId, allow, modifier);
   };
   return (
-    <div className="plan-approval-bar">
+    <div className="permission-request-card" aria-live="polite">
       <div className="plan-approval-label">{item.toolName}</div>
       <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
       <div className="plan-approval-actions">
         <button className="btn-allow" onClick={() => respond(true)}>
           Allow
         </button>
-        <button className="btn-allow" style={{ opacity: 0.8 }} onClick={() => respond(true, 'always')}>
+        <button className="btn-always" onClick={() => respond(true, 'always')}>
           Always
         </button>
         <button className="btn-deny" onClick={() => respond(false)}>
@@ -411,10 +411,10 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
   const rowProps: RowProps = { display, isExpanded, toggleGroup, sessionId };
 
   return (
-    <div className="output-container">
+    <div className="output-container" role="log" aria-label="Session output">
       {display.length === 0 ? (
         <div className="output-scroll">
-          <div className="output-empty">
+          <div className={`output-empty${isLoading ? ' loading' : ''}`}>
             {isLoading ? 'Loading session history...' : 'Send a message to start the agent'}
           </div>
         </div>

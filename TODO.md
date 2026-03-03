@@ -4,15 +4,37 @@
 
 - [ ] **processGiftWrap swallows exceptions silently** — `nostrService.ts:169` — NIP-17 gift-wrap decryption failures return `null` with minimal logging, making DM debugging hard. Added `console.warn` but could surface to UI.
 
-- [ ] **Seq counters reset on bridge extension restart** — Both `sessionWatcher.ts:244` and `nostrRelay.ts:174` start seq at 0 on restart. Phone may receive duplicate entries after a bridge restart. Fix: persist seq counters in `context.globalState` or derive from loaded history.
+- [x] ~~**Seq counters reset on bridge extension restart**~~ — Fixed: `sessionWatcher.ts:loadFullHistory()` now derives seq counters from JSONL content on restart, and `extension.ts` persists `lastSeenTimestamp` in `globalState` for crash recovery.
 
-- [ ] **sendToClaudeTerminal ignores sessionId** — `terminalBridge.ts:29-47` — Input from phone always goes to the first Claude terminal found, regardless of which session it targets. With multiple concurrent sessions, input goes to the wrong one. Fix: implement session-to-terminal mapping.
+- [x] ~~**sendToClaudeTerminal ignores sessionId**~~ — Fixed: `terminalBridge.ts` now has full session-to-terminal mapping via `TerminalRegistry`.
 
 - [ ] **SettingsModal API key test has no timeout** — `SettingsModal.tsx:43-60` — `handleTestApiKey()` calls `api.testApiKey()` with no timeout mechanism. If the network hangs, the UI shows "Testing..." indefinitely.
 
-- [ ] **Phone subscription should use `since` filter** — `bridgeService.ts` — On reconnect, the relay dumps all stored kind 29515 events. Should use `since: lastSeenTimestamp` in the subscription filter to avoid re-fetching events the phone already has. More impactful than NIP-40 expiration for performance.
+- [x] ~~**Phone subscription should use `since` filter**~~ — Fixed: `bridgeService.ts:connectToMachine()` uses `since: lastSeenTimestamp - 5` with 5-minute fallback window on first connect.
 
 - [ ] **App.tsx deep link errors silently swallowed** — `App.tsx:74-79` — `getCurrent()` and `onOpenUrl()` promise rejections are caught with empty `.catch(() => {})`. If deep link init fails, pairing via QR code won't work with no feedback.
+
+## Reliability Audit Fixes (2026-03-03)
+
+### Bridge (`codedeck-bridge-vscode/`)
+- [x] **Relay reconnection with exponential backoff** — `nostrRelay.ts` — `scheduleReconnect()` with 2s→30s cap. Called from `connect()` catch and `onclose`. Reset on `oneose` and successful publish.
+- [x] **Output queue cap increased** — `nostrRelay.ts` — `MAX_OUTPUT_QUEUE_SIZE` raised from 200 to 500 (matches history buffer).
+- [x] **TOCTOU fix in readNewLines** — `sessionWatcher.ts` — `openSync()` first, `fstatSync(fd)` second. Catches ENOENT to clean up stale offsets.
+- [x] **Terminal liveness checks** — `terminalBridge.ts` — `exitStatus !== undefined` guard before each `sendText()` in `submitToTerminal()`.
+- [x] **Pending timer cleanup** — `terminalBridge.ts` — `pendingTimers` Set tracked and cleared in `dispose()`.
+- [x] **Flush guard** — `terminalBridge.ts` — `flushingSession` Set prevents concurrent `flushPendingInputs()`.
+- [x] **LRU history eviction** — `sessionWatcher.ts` — standalone 5-minute interval evicts idle sessions when total history exceeds 10K entries.
+- [x] **Dead session pruning** — `sessionWatcher.ts` — `pruneDeletedSessions()` checks `fs.existsSync` every ~36s.
+- [x] **Dispose lifecycle** — `nostrRelay.ts` — `dispose()` method prevents reconnection after deactivation.
+
+### Codedeck (`codedeck/`)
+- [x] **Decryption failure tracking** — `bridgeService.ts` — After 5 consecutive failures, emits `onStatus('disconnected')`.
+- [x] **Per-session card tracking** — `sessionStore.ts` + `OutputStream.tsx` — `respondedCards` is `Map<sessionId, Set<cardId>>` (was flat Set with composite keys).
+- [x] **History chunk tracker keyed by requestId** — `sessionStore.ts` — eliminates race when second history-request arrives before first completes.
+- [x] **Capped seq dedup** — `sessionStore.ts` — `seenBridgeSeqs` Set capped at 1000 entries per session, pruned below `max - 1000`.
+- [x] **Handler re-registration** — `sessionStore.ts` — `initBridgeService()` always re-registers handlers (safe after key change).
+- [x] **Periodic rumor ID cleanup** — `nostrService.ts` — 5-minute interval evicts stale `sentRumorIds`.
+- [x] **DM profile fetch timeout** — `nostrService.ts` — `fetchProfileName()` wrapped in `Promise.race()` with 5s timeout.
 
 ## Future Protocol Improvement
 
