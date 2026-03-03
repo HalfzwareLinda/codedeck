@@ -19,9 +19,11 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 - PLAN mode (manual approval) and AUTO mode (auto-execute)
 - **Plan approval cards**: Approve or reject Claude's plans directly from your phone
 - **Question cards**: Answer Claude's multi-choice questions inline
-- **Permission request cards**: Allow/Deny/Always for tool calls with live status tracking
+- **Permission request cards**: Allow/Deny/Always for tool calls with tool-specific labels and live status tracking
+- **Push notifications**: OS notifications for permission requests and plan approvals when app is backgrounded
 - **Image attachments**: Send images from your phone to Claude Code sessions
 - **GFM markdown rendering**: GitHub-flavored markdown with syntax highlighting
+- **Four permission modes**: Cycle between default/plan/acceptEdits/bypass from the session header
 - Full agent loop: file read/write/edit, bash exec, grep, directory listing
 - Persistent sessions and configuration with **crash recovery**
 - Chat-style session view with collapsible tool groups
