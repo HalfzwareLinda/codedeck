@@ -131,10 +131,10 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     <div className="plan-approval-bar">
       <div className="plan-approval-label">Approve this plan?</div>
       <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => respond('y')}>
+        <button className="btn-allow" onClick={() => respond('1')}>
           Approve
         </button>
-        <button className="btn-deny" onClick={() => respond('n')}>
+        <button className="btn-deny" onClick={() => respond('2')}>
           Reject
         </button>
       </div>
