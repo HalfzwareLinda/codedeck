@@ -66,7 +66,7 @@ export default function DmConversationView({ conversationId, isWide }: { convers
 
   // Auto-scroll on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
   }, [messages.length]);
 
   const handleSend = () => {
