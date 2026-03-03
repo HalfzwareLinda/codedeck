@@ -30,7 +30,7 @@ function handleDeepLink(url: string): void {
 
     const relays = relaysParam
       ? relaysParam.split(',').map(r => decodeURIComponent(r)).filter(r => r.startsWith('wss://') || r.startsWith('ws://'))
-      : ['wss://relay.damus.io', 'wss://nos.lol'];
+      : ['wss://relay.primal.net', 'wss://relay.nostr.band', 'wss://nos.lol'];
 
     const machine: RemoteMachine = {
       hostname: machineName,

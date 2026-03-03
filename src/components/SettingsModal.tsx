@@ -113,7 +113,7 @@ export default function SettingsModal() {
       .split('\n')
       .map(r => r.trim())
       .filter(r => r.startsWith('wss://') || r.startsWith('ws://'));
-    const effectiveRelays = relays.length > 0 ? relays : ['wss://relay.damus.io', 'wss://nos.lol'];
+    const effectiveRelays = relays.length > 0 ? relays : ['wss://relay.primal.net', 'wss://nos.lol'];
 
     updateNostrConfig({
       private_key_hex: privateKeyHex,
@@ -308,7 +308,7 @@ export default function SettingsModal() {
             className="modal-input"
             value={relayList}
             onChange={(e) => setRelayList(e.target.value)}
-            placeholder={'wss://relay.damus.io\nwss://nos.lol'}
+            placeholder={'wss://relay.primal.net\nwss://nos.lol'}
             style={{ height: 80, resize: 'vertical', fontFamily: 'inherit' }}
           />
         </div>
@@ -379,7 +379,7 @@ export default function SettingsModal() {
                   hostname: newMachineName || 'Remote',
                   npub: newMachineNpub.startsWith('npub1') ? newMachineNpub : nip19.npubEncode(pubkeyHex),
                   pubkeyHex,
-                  relays: relays.length > 0 ? relays : ['wss://relay.damus.io', 'wss://nos.lol'],
+                  relays: relays.length > 0 ? relays : ['wss://relay.primal.net', 'wss://nos.lol'],
                   connected: false,
                 };
                 addMachine(machine);
