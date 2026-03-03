@@ -9,6 +9,7 @@ import {
   sendRemoteInput,
   sendRemoteImage,
   sendRemoteModeChange,
+  sendRemoteKeypress,
   sendRemotePermissionResponse,
   sendHistoryRequest,
   sendCreateSessionRequest,
@@ -59,6 +60,11 @@ interface SessionStore {
   requestRefreshSessions: () => void;
   createRemoteSession: (machine: RemoteMachine) => Promise<void>;
   respondRemotePermission: (sessionId: string, requestId: string, allow: boolean, modifier?: 'always' | 'never') => Promise<void>;
+  sendRemoteKeypress: (sessionId: string, key: string) => Promise<void>;
+  /** Track that a card (permission, plan approval, question) has been responded to.
+   *  Keyed by tool_use_id to survive virtualized list unmount/remount. */
+  respondedCards: Set<string>;
+  markCardResponded: (cardId: string) => void;
 }
 
 const defaultConfig: AppConfig = {
@@ -194,6 +200,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   historyLoading: {},
   refreshing: false,
   pendingSessions: new Map(),
+  respondedCards: new Set(),
+
+  markCardResponded: (cardId) => set((state) => {
+    if (state.respondedCards.has(cardId)) return state;
+    const next = new Set(state.respondedCards);
+    next.add(cardId);
+    return { respondedCards: next };
+  }),
 
   setActiveSession: (id) => set((state) => {
     if (!state.unreadSessions.has(id)) return { activeSessionId: id };
@@ -864,6 +878,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await sendRemotePermissionResponse(machine, sessionId, requestId, allow, modifier);
     } catch (e) {
       console.error('[SessionStore] Failed to send permission response:', e);
+    }
+  },
+
+  sendRemoteKeypress: async (sessionId, key) => {
+    const machine = get().getMachineForSession(sessionId);
+    if (!machine) {
+      console.warn('[SessionStore] sendRemoteKeypress: no machine for session', sessionId);
+      return;
+    }
+    try {
+      await sendRemoteKeypress(machine, sessionId, key);
+    } catch (e) {
+      console.error('[SessionStore] Failed to send keypress:', e);
     }
   },
 

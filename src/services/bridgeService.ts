@@ -162,6 +162,19 @@ export async function sendRemoteInput(
 }
 
 /**
+ * Send a single raw keypress to a Claude Code session (plan approval, question selection).
+ * Routed through sendKeypress on the bridge — no Escape/Enter wrapping.
+ */
+export async function sendRemoteKeypress(
+  machine: RemoteMachine,
+  sessionId: string,
+  key: string,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'keypress', sessionId, key };
+  await publishToMachine(machine, msg);
+}
+
+/**
  * Send a permission response to a remote machine.
  */
 export async function sendRemotePermissionResponse(

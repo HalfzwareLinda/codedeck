@@ -95,9 +95,10 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
   return <div className="output-system">{entry.content}</div>;
 }
 
-function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answered?: string }) {
-  const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
-  const [sent, setSent] = useState(false);
+function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string; answered?: string; cardId?: string }) {
+  const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
+  const markResponded = useSessionStore((s) => s.markCardResponded);
+  const responded = useSessionStore((s) => cardId ? s.respondedCards.has(cardId) : false);
   if (answered) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
@@ -105,21 +106,25 @@ function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answere
       </div>
     );
   }
-  if (sent) {
+  if (responded) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
         <div className="plan-approval-label">Response sent...</div>
       </div>
     );
   }
+  const respond = (key: string) => {
+    if (cardId) markResponded(cardId);
+    sendKeypress(sessionId, key);
+  };
   return (
     <div className="plan-approval-bar">
       <div className="plan-approval-label">Approve this plan?</div>
       <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => { setSent(true); respondRemotePermission(sessionId, '', true); }}>
+        <button className="btn-allow" onClick={() => respond('y')}>
           Approve
         </button>
-        <button className="btn-deny" onClick={() => { setSent(true); respondRemotePermission(sessionId, '', false); }}>
+        <button className="btn-deny" onClick={() => respond('n')}>
           Reject
         </button>
       </div>
@@ -128,8 +133,10 @@ function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answere
 }
 
 function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: string }) {
-  const sendMessage = useSessionStore((s) => s.sendMessage);
-  const [sent, setSent] = useState(false);
+  const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
+  const markResponded = useSessionStore((s) => s.markCardResponded);
+  const cardId = item.entry.metadata?.tool_use_id as string | undefined;
+  const responded = useSessionStore((s) => cardId ? s.respondedCards.has(cardId) : false);
   if (item.answered) {
     return (
       <div className="question-card question-answered">
@@ -139,7 +146,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
       </div>
     );
   }
-  if (sent) {
+  if (responded) {
     return (
       <div className="question-card question-answered">
         {item.header && <div className="question-header">{item.header}</div>}
@@ -158,7 +165,10 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
             <button
               key={i}
               className="question-option-btn"
-              onClick={() => { setSent(true); sendMessage(sessionId, String(i + 1)); }}
+              onClick={() => {
+                if (cardId) markResponded(cardId);
+                sendKeypress(sessionId, String(i + 1));
+              }}
             >
               <span className="question-option-label">{opt.label}</span>
               {opt.description && (
@@ -174,8 +184,9 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
 
 function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDisplay; sessionId: string }) {
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
-  const [sent, setSent] = useState(false);
-  if (sent) {
+  const markResponded = useSessionStore((s) => s.markCardResponded);
+  const responded = useSessionStore((s) => s.respondedCards.has(item.requestId));
+  if (responded) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
         <div className="plan-approval-label">{item.toolName}</div>
@@ -184,18 +195,22 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
       </div>
     );
   }
+  const respond = (allow: boolean, modifier?: 'always' | 'never') => {
+    markResponded(item.requestId);
+    respondRemotePermission(sessionId, item.requestId, allow, modifier);
+  };
   return (
     <div className="plan-approval-bar">
       <div className="plan-approval-label">{item.toolName}</div>
       <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
       <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => { setSent(true); respondRemotePermission(sessionId, item.requestId, true); }}>
+        <button className="btn-allow" onClick={() => respond(true)}>
           Allow
         </button>
-        <button className="btn-allow" style={{ opacity: 0.8 }} onClick={() => { setSent(true); respondRemotePermission(sessionId, item.requestId, true, 'always'); }}>
+        <button className="btn-allow" style={{ opacity: 0.8 }} onClick={() => respond(true, 'always')}>
           Always
         </button>
-        <button className="btn-deny" onClick={() => { setSent(true); respondRemotePermission(sessionId, item.requestId, false); }}>
+        <button className="btn-deny" onClick={() => respond(false)}>
           Deny
         </button>
       </div>
@@ -230,7 +245,7 @@ function DisplayItem({
     case 'diff':
       return <DiffEntry entry={item.entry} />;
     case 'plan_approval':
-      return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} />;
+      return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
     case 'permission_request':
