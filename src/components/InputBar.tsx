@@ -22,6 +22,17 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Check if the remote session has no terminal (bridge reported hasTerminal=false).
+  // The selector returns a primitive boolean, so zustand skips re-renders when the value is stable.
+  const noTerminal = useSessionStore((s) => {
+    for (const sessions of Object.values(s.remoteSessions)) {
+      for (const sess of sessions) {
+        if (sess.id === sessionId) return sess.hasTerminal === false;
+      }
+    }
+    return false;
+  });
+
   // Revoke blob URL on cleanup or when image changes
   useEffect(() => {
     return () => {
@@ -144,6 +155,11 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
 
   return (
     <div className="input-bar-wrapper">
+      {noTerminal && (
+        <div className="input-no-terminal-notice">
+          Terminal offline — will auto-relaunch on send
+        </div>
+      )}
       {pendingImage && (
         <div className="image-preview-strip">
           <img

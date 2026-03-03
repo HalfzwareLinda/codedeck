@@ -91,12 +91,15 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
     );
   }
 
+  const noTerminal = session.hasTerminal === false;
+
   return (
-    <div className={classes} onClick={handleClick}>
+    <div className={classes} onClick={handleClick} style={noTerminal ? { opacity: 0.6 } : undefined}>
       <div className="session-card-info">
         <div className="session-card-name">{session.title || session.slug}</div>
         <div className="session-card-path">
           <span className="session-card-path-text">{session.project}</span>
+          {noTerminal && <span className="session-card-offline">offline</span>}
           <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
         </div>
       </div>

@@ -85,6 +85,28 @@ const HISTORY_IDLE_TIMEOUT_MS = 10_000;
 
 let refreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+/** Tracks sessions for which auto-history-request has already been dispatched. */
+const autoHistoryRequested = new Set<string>();
+
+/** Debounced persist for remote session metadata. Strips volatile fields (hasTerminal). */
+let persistSessionsTimer: ReturnType<typeof setTimeout> | null = null;
+let persistSessionsGetter: (() => { remoteSessions: Record<string, RemoteSessionInfo[]> }) | null = null;
+function debouncedPersistRemoteSessions(getState: () => { remoteSessions: Record<string, RemoteSessionInfo[]> }): void {
+  persistSessionsGetter = getState;
+  if (persistSessionsTimer) clearTimeout(persistSessionsTimer);
+  persistSessionsTimer = setTimeout(() => {
+    persistSessionsTimer = null;
+    if (!persistSessionsGetter) return;
+    const sessions = persistSessionsGetter().remoteSessions;
+    // Strip volatile fields before persisting
+    const stripped: Record<string, RemoteSessionInfo[]> = {};
+    for (const [key, list] of Object.entries(sessions)) {
+      stripped[key] = list.map(({ hasTerminal: _, ...rest }) => rest);
+    }
+    persistSet('codedeck_remote_sessions', stripped);
+  }, 2_000);
+}
+
 const historyChunkTrackers = new Map<string, {
   totalChunks: number;
   receivedCount: number;
@@ -577,19 +599,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             };
           });
 
-          // Persist remote session metadata (titles, projects, etc.) for crash recovery
-          persistSet('codedeck_remote_sessions', get().remoteSessions);
+          // Persist remote session metadata (debounced, strips volatile fields)
+          debouncedPersistRemoteSessions(get);
 
           // Auto-request history for sessions with no cached output (crash recovery)
           const currentOutputs = get().outputs;
           const currentLoading = get().historyLoading;
-          const sessionsNeedingHistory = merged
-            .filter(s => !s.id.startsWith('pending:') && (!currentOutputs[s.id] || currentOutputs[s.id].length === 0) && !currentLoading[s.id])
-            .sort((a, b) => b.lastActivity.localeCompare(a.lastActivity))
+          const currentSessions = get().remoteSessions[machine.pubkeyHex] || [];
+          const sessionsNeedingHistory = currentSessions
+            .filter((s: RemoteSessionInfo) =>
+              !s.id.startsWith('pending:')
+              && (!currentOutputs[s.id] || currentOutputs[s.id].length === 0)
+              && !currentLoading[s.id]
+              && !autoHistoryRequested.has(s.id))
+            .sort((a: RemoteSessionInfo, b: RemoteSessionInfo) => b.lastActivity.localeCompare(a.lastActivity))
             .slice(0, 10); // limit to 10 most recent
 
           for (let i = 0; i < sessionsNeedingHistory.length; i++) {
             const s = sessionsNeedingHistory[i];
+            autoHistoryRequested.add(s.id);
             setTimeout(() => {
               get().requestSessionHistory(s.id);
             }, i * 500); // 500ms stagger to avoid flooding
@@ -773,7 +801,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             pendingSessions: new Map(pending),
           };
         });
-        persistSet('codedeck_remote_sessions', get().remoteSessions);
+        debouncedPersistRemoteSessions(get);
       },
       // onSessionFailed — remove placeholder
       (pendingId, reason) => {
@@ -800,7 +828,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           };
         });
       },
-      // onInputFailed — show error in session output
+      // onInputFailed — show error in session output and reset permission cards
       (sessionId, reason) => {
         const message = reason === 'no-terminal'
           ? 'No active terminal for this session. The Claude Code terminal may have closed — try creating a new session.'
@@ -809,6 +837,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           entry_type: 'error',
           content: message,
           timestamp: new Date().toISOString(),
+        });
+
+        // Clear responded state for permission cards so user can retry
+        set((state) => {
+          const outputs = state.outputs[sessionId] || [];
+          const sessionCardIds = new Set<string>();
+          for (const entry of outputs) {
+            const id = entry.metadata?.tool_use_id as string | undefined;
+            if (id && entry.metadata?.special === 'permission_request') {
+              sessionCardIds.add(id);
+            }
+          }
+          if (sessionCardIds.size === 0) return {};
+          const next = new Set(state.respondedCards);
+          for (const id of sessionCardIds) next.delete(id);
+          return { respondedCards: next };
         });
       },
     );

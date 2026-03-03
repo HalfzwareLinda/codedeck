@@ -122,6 +122,15 @@
   white-space: nowrap;
 }
 
+.session-card-offline {
+  font-size: 10px;
+  color: var(--error, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 0 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 .status-dot {
   width: 10px;
   height: 10px;
