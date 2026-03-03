@@ -40,14 +40,35 @@ export default function SettingsModal() {
   const [newMachineNpub, setNewMachineNpub] = useState('');
   const [newMachineName, setNewMachineName] = useState('');
   const [machineError, setMachineError] = useState('');
+  const [showDiscardWarning, setShowDiscardWarning] = useState(false);
+
+  const isDirty = useMemo(() => {
+    if (!config) return false;
+    const configChanged = JSON.stringify(local) !== JSON.stringify(config);
+    const nostrKeyChanged = nostrKey !== (nostrConfig.private_key_hex || '');
+    const relayChanged = relayList !== nostrConfig.relays.join('\n');
+    const hasPendingMachine = newMachineNpub.trim().length > 0;
+    return configChanged || nostrKeyChanged || relayChanged || hasPendingMachine;
+  }, [local, config, nostrKey, nostrConfig.private_key_hex, relayList, nostrConfig.relays, newMachineNpub]);
+
+  const handleClose = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardWarning(true);
+      return;
+    }
+    setSettingsOpen(false);
+  }, [isDirty, setSettingsOpen]);
 
   const handleTestApiKey = async () => {
     const key = local.anthropic_api_key?.trim();
     if (!key) return;
     setApiKeyStatus('testing');
     setApiKeyError('');
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout — check your connection')), 10000),
+    );
     try {
-      const result = await api.testApiKey(key);
+      const result = await Promise.race([api.testApiKey(key), timeout]);
       if (result) {
         setApiKeyStatus('valid');
       } else {
@@ -56,7 +77,7 @@ export default function SettingsModal() {
       }
     } catch (e: unknown) {
       setApiKeyStatus('invalid');
-      setApiKeyError(String(e) || 'Unknown error');
+      setApiKeyError(String(e instanceof Error ? e.message : e) || 'Unknown error');
     }
   };
 
@@ -126,11 +147,11 @@ export default function SettingsModal() {
   };
 
   return (
-    <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">Settings</span>
-          <button className="modal-close" onClick={() => setSettingsOpen(false)}>
+          <button className="modal-close" onClick={handleClose}>
             &times;
           </button>
         </div>
@@ -374,6 +395,16 @@ export default function SettingsModal() {
 
         {/* Diagnostics */}
         <DiagnosticsSection />
+
+        {showDiscardWarning && (
+          <div className="modal-discard-bar">
+            <span>You have unsaved changes</span>
+            <div className="modal-discard-actions">
+              <button className="modal-discard-btn" onClick={() => setSettingsOpen(false)}>Discard</button>
+              <button className="modal-discard-btn modal-discard-cancel" onClick={() => setShowDiscardWarning(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         <button className="modal-primary-btn" onClick={handleSave}>
           Save

@@ -86,6 +86,17 @@
   background: none;
   padding: 0;
 }
+/* Override highlight.js theme to match app background */
+.assistant-message pre code.hljs {
+  background: var(--bg-card);
+  padding: 12px;
+  border-radius: 4px;
+}
+/* Inline code should never get hljs styling */
+.assistant-message :not(pre) > code.hljs {
+  display: inline;
+  padding: 2px 6px;
+}
 .assistant-message strong { color: var(--text-primary); }
 .assistant-message a { color: var(--text-secondary); text-decoration: underline; }
 
@@ -140,7 +151,7 @@
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-align: left;
 }
 
@@ -150,7 +161,7 @@
 
 .tool-group-chevron {
   display: inline-block;
-  font-size: 11px;
+  font-size: 14px;
   transition: transform 0.15s ease;
   flex-shrink: 0;
 }
@@ -209,7 +220,6 @@
 .output-diff-remove {
   color: var(--diff-remove);
   background: var(--diff-remove-bg);
-  text-decoration: line-through;
   white-space: pre;
 }
 
@@ -238,6 +248,10 @@
   font-size: 13px;
   text-align: center;
   padding-top: 40px;
+}
+
+.output-empty.loading {
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 /* --- Scroll pill --- */
@@ -357,6 +371,43 @@
   padding: 4px 8px;
   background: var(--bg-surface);
   border-radius: 4px;
+}
+
+/* --- Permission request card (distinct from plan approval) --- */
+
+.permission-request-card {
+  background: var(--bg-card);
+  border: 2px solid #f59e0b;
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 4px 0;
+}
+
+.permission-request-card .plan-approval-label {
+  color: var(--text-primary);
+}
+
+.permission-request-card .plan-approval-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.permission-request-answered {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.btn-always {
+  background: var(--bg-black);
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 0 24px;
+  height: 56px;
+  min-width: 120px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-medium);
+  cursor: pointer;
 }
 
 /* --- Token usage in header --- */

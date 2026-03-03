@@ -75,12 +75,23 @@
   padding: 0 12px;
   min-width: 60px;
   background: var(--bg-surface);
-  color: var(--text-primary);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   border: 1px solid var(--border-medium);
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.send-btn.send-btn-active {
+  background: var(--text-primary);
+  color: var(--bg-black);
+  border-color: var(--text-primary);
+}
+
+.send-btn.send-pop {
+  animation: send-pop 0.25s ease-out;
 }
 
 .send-btn:disabled {
@@ -117,10 +128,7 @@
   animation: mic-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes mic-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
-}
+/* mic-pulse keyframe moved to global.css */
 
 /* === Input bar wrapper (accommodates preview strip above) === */
 

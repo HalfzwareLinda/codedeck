@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef, CSSProperties } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 import { List, useListRef, useDynamicRowHeight } from 'react-window';
 import { useSessionStore } from '../stores/sessionStore';
 import { OutputEntry } from '../types';
@@ -20,13 +22,14 @@ const DEFAULT_ROW_HEIGHT = 40;
 // --- Entry-level components ---
 
 const remarkPlugins = [remarkGfm];
+const rehypePlugins = [rehypeHighlight];
 
 function UserMessageBubble({ entry }: { entry: OutputEntry }) {
   const imageFilename = entry.metadata?.imageFilename as string | undefined;
   return (
     <div className="user-message-row">
       <div className="user-message-bubble">
-        <Markdown remarkPlugins={remarkPlugins}>{entry.content}</Markdown>
+        <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{entry.content}</Markdown>
         {imageFilename && (
           <div className="user-message-image-tag">
             <span className="user-message-image-icon">&#x1F4CE;</span>
@@ -41,7 +44,7 @@ function UserMessageBubble({ entry }: { entry: OutputEntry }) {
 function AssistantMessage({ entry }: { entry: OutputEntry }) {
   return (
     <div className="assistant-message">
-      <Markdown remarkPlugins={remarkPlugins}>{entry.content}</Markdown>
+      <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{entry.content}</Markdown>
     </div>
   );
 }

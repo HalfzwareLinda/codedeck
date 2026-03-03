@@ -140,6 +140,11 @@
 .toggle-switch.on { background: var(--text-primary); }
 .toggle-switch.off { background: var(--border-medium); }
 
+.toggle-switch:focus-visible {
+  outline: 2px solid var(--text-secondary);
+  outline-offset: 2px;
+}
+
 .toggle-knob {
   width: 22px;
   height: 22px;
@@ -175,4 +180,40 @@
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+/* Inline discard-changes bar */
+.modal-discard-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.modal-discard-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.modal-discard-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--error);
+  color: #fff;
+  border: none;
+}
+
+.modal-discard-btn.modal-discard-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-medium);
 }

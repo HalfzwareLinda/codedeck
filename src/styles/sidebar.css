@@ -91,12 +91,13 @@
 }
 
 .session-card-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 2px;
 }
 
 .session-card-path {
@@ -167,9 +168,34 @@
 
 .sidebar-empty {
   padding: 32px 16px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 13px;
   text-align: center;
+}
+
+.sidebar-add-btn-sm {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  padding: 0;
+}
+
+.sidebar-connecting {
+  color: var(--text-muted);
+}
+
+.connecting-dot {
+  animation: connecting-fade 1.4s ease-in-out infinite;
+  opacity: 0;
+}
+
+.connecting-dot.dot-1 { animation-delay: 0s; }
+.connecting-dot.dot-2 { animation-delay: 0.2s; }
+.connecting-dot.dot-3 { animation-delay: 0.4s; }
+
+@keyframes connecting-fade {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
 }
 
 /* --- Pull-to-refresh --- */
@@ -207,7 +233,4 @@
   color: var(--text-secondary);
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+/* spin keyframe moved to global.css */

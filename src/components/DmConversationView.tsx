@@ -123,15 +123,32 @@ export default function DmConversationView({ conversationId, isWide }: { convers
       </div>
 
       <div className="dm-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`dm-bubble ${isSent(msg) ? 'sent' : 'received'}${msg.status === 'failed' ? ' failed' : ''}`}>
-            <div className="dm-bubble-content">{msg.content}</div>
-            <div className="dm-bubble-time">
-              {formatTime(msg.timestamp)}
-              {msg.status === 'failed' && <span className="dm-send-failed"> — send failed</span>}
+        {messages.map((msg) => {
+          const recipientPubkey = conversation.participants.find(p => p !== ownPubkey);
+          const handleRetry = () => {
+            if (msg.status === 'failed' && recipientPubkey) {
+              sendDm(recipientPubkey, msg.content);
+            }
+          };
+          return (
+            <div key={msg.id} className={`dm-bubble-wrapper ${isSent(msg) ? 'sent' : 'received'}`}>
+              <div
+                className={`dm-bubble ${isSent(msg) ? 'sent' : 'received'}${msg.status === 'failed' ? ' failed' : ''}`}
+              >
+                <div className="dm-bubble-content">{msg.content}</div>
+                <div className="dm-bubble-time">
+                  {formatTime(msg.timestamp)}
+                  {msg.status === 'failed' && <span className="dm-send-failed"> — send failed</span>}
+                </div>
+              </div>
+              {msg.status === 'failed' && (
+                <button className="dm-retry-btn" onClick={handleRetry} type="button">
+                  Retry
+                </button>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 

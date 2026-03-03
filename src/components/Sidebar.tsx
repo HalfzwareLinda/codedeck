@@ -147,7 +147,7 @@ function NewDmInput({ onClose }: { onClose: () => void }) {
         }}
         placeholder="npub or hex pubkey"
       />
-      {error && <div style={{ color: '#ef4444', fontSize: 11, padding: '2px 8px' }}>{error}</div>}
+      {error && <div className="new-dm-error">{error}</div>}
     </div>
   );
 }
@@ -296,8 +296,7 @@ export default function Sidebar() {
                 <span style={{ flex: 1 }}>{machine.hostname}</span>
                 {machine.connected && (
                   <button
-                    className="sidebar-add-btn"
-                    style={{ fontSize: 14, padding: '0 4px', lineHeight: 1 }}
+                    className="sidebar-add-btn sidebar-add-btn-sm"
                     onClick={(e) => { e.stopPropagation(); setNewSessionOpen(true, machine); }}
                   >+</button>
                 )}
@@ -311,7 +310,7 @@ export default function Sidebar() {
               ))}
               {machineSessions.length === 0 && (
                 <div className="sidebar-empty" style={{ fontSize: 11, padding: '4px 16px' }}>
-                  {machine.connected ? 'No sessions' : 'Connecting...'}
+                  {machine.connected ? 'No sessions' : <span className="sidebar-connecting">Connecting<span className="connecting-dot dot-1">.</span><span className="connecting-dot dot-2">.</span><span className="connecting-dot dot-3">.</span></span>}
                 </div>
               )}
             </div>
@@ -340,7 +339,10 @@ export default function Sidebar() {
         ))}
         {!hasLocalSessions && !hasRemoteMachines && (
           <div className="sidebar-empty">
-            No sessions yet.<br />Tap + to create one.
+            <div style={{ marginBottom: 8 }}>No sessions yet</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Connect to a VS Code machine to start coding remotely, or tap + to create a local session.
+            </div>
           </div>
         )}
       </div>
