@@ -248,7 +248,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const seq = entry.metadata?.bridgeSeq as number | undefined;
     let updated: OutputEntry[];
 
-    if (seq !== undefined && seq !== 0) {
+    if (seq !== undefined) {
       const insertIdx = findInsertIndex(existing, seq);
       updated = [...existing.slice(0, insertIdx), entry, ...existing.slice(insertIdx)];
     } else {
@@ -320,6 +320,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       content: text || (image ? `[Image: ${image.filename}]` : ''),
       timestamp: new Date().toISOString(),
     });
+
+    // Set title from first message if session still has a hex slug or no title
+    if (text) {
+      set((state) => {
+        for (const [key, sessions] of Object.entries(state.remoteSessions)) {
+          const idx = sessions.findIndex(s => s.id === sessionId);
+          if (idx !== -1 && !sessions[idx].title) {
+            const title = text.replace(/\n/g, ' ').trim();
+            const updated = [...sessions];
+            updated[idx] = { ...updated[idx], title: title.length > 80 ? title.slice(0, 77) + '...' : title };
+            return { remoteSessions: { ...state.remoteSessions, [key]: updated } };
+          }
+        }
+        return {};
+      });
+    }
 
     // Check if this is a remote session
     const machine = get().getMachineForSession(sessionId);
@@ -522,7 +538,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                   && prev.cwd === incoming.cwd) {
                 return prev; // unchanged — keep same reference
               }
-              return { ...prev, ...incoming }; // merge updates
+              return { ...prev, ...incoming, title: incoming.title ?? prev.title }; // merge updates, preserve non-null title
             });
 
             // Preserve pending placeholders that haven't been resolved yet,

@@ -96,7 +96,8 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
 }
 
 function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answered?: string }) {
-  const sendMessage = useSessionStore((s) => s.sendMessage);
+  const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
+  const [sent, setSent] = useState(false);
   if (answered) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
@@ -104,14 +105,21 @@ function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answere
       </div>
     );
   }
+  if (sent) {
+    return (
+      <div className="plan-approval-bar plan-approval-answered">
+        <div className="plan-approval-label">Response sent...</div>
+      </div>
+    );
+  }
   return (
     <div className="plan-approval-bar">
       <div className="plan-approval-label">Approve this plan?</div>
       <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => sendMessage(sessionId, 'y')}>
+        <button className="btn-allow" onClick={() => { setSent(true); respondRemotePermission(sessionId, '', true); }}>
           Approve
         </button>
-        <button className="btn-deny" onClick={() => sendMessage(sessionId, 'n')}>
+        <button className="btn-deny" onClick={() => { setSent(true); respondRemotePermission(sessionId, '', false); }}>
           Reject
         </button>
       </div>
@@ -121,12 +129,22 @@ function PlanApprovalEntry({ sessionId, answered }: { sessionId: string; answere
 
 function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: string }) {
   const sendMessage = useSessionStore((s) => s.sendMessage);
+  const [sent, setSent] = useState(false);
   if (item.answered) {
     return (
       <div className="question-card question-answered">
         {item.header && <div className="question-header">{item.header}</div>}
         <div className="question-text">{item.entry.content}</div>
         <div className="question-answer">{item.answered}</div>
+      </div>
+    );
+  }
+  if (sent) {
+    return (
+      <div className="question-card question-answered">
+        {item.header && <div className="question-header">{item.header}</div>}
+        <div className="question-text">{item.entry.content}</div>
+        <div className="question-answer">Response sent...</div>
       </div>
     );
   }
@@ -140,7 +158,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
             <button
               key={i}
               className="question-option-btn"
-              onClick={() => sendMessage(sessionId, opt.label)}
+              onClick={() => { setSent(true); sendMessage(sessionId, String(i + 1)); }}
             >
               <span className="question-option-label">{opt.label}</span>
               {opt.description && (
@@ -156,18 +174,28 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
 
 function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDisplay; sessionId: string }) {
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
+  const [sent, setSent] = useState(false);
+  if (sent) {
+    return (
+      <div className="plan-approval-bar plan-approval-answered">
+        <div className="plan-approval-label">{item.toolName}</div>
+        <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
+        <div className="plan-approval-label">Response sent...</div>
+      </div>
+    );
+  }
   return (
     <div className="plan-approval-bar">
       <div className="plan-approval-label">{item.toolName}</div>
       <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
       <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => respondRemotePermission(sessionId, item.requestId, true)}>
+        <button className="btn-allow" onClick={() => { setSent(true); respondRemotePermission(sessionId, item.requestId, true); }}>
           Allow
         </button>
-        <button className="btn-allow" style={{ opacity: 0.8 }} onClick={() => respondRemotePermission(sessionId, item.requestId, true, 'always')}>
+        <button className="btn-allow" style={{ opacity: 0.8 }} onClick={() => { setSent(true); respondRemotePermission(sessionId, item.requestId, true, 'always'); }}>
           Always
         </button>
-        <button className="btn-deny" onClick={() => respondRemotePermission(sessionId, item.requestId, false)}>
+        <button className="btn-deny" onClick={() => { setSent(true); respondRemotePermission(sessionId, item.requestId, false); }}>
           Deny
         </button>
       </div>
