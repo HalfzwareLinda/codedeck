@@ -198,23 +198,6 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
 
       <div className="input-bar">
         <div className="left-controls">
-          <button className={`mode-btn active${modeCooldown ? ' mode-cooldown' : ''}`} onClick={cycleMode}>
-            {MODE_LABELS[mode ?? 'default']}
-          </button>
-        </div>
-
-        <textarea
-          ref={textareaRef}
-          className="input-textarea"
-          value={isListening ? displayValue : text}
-          onChange={(e) => { if (!isListening) setText(e.target.value); }}
-          onKeyDown={handleKeyDown}
-          placeholder={isListening ? 'Listening...' : 'Ask anything...'}
-          rows={1}
-          readOnly={isListening || sending}
-        />
-
-        <div className="right-controls">
           <button
             className="attach-btn"
             onClick={() => fileInputRef.current?.click()}
@@ -233,6 +216,23 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
+          <button className={`mode-btn active${modeCooldown ? ' mode-cooldown' : ''}`} onClick={cycleMode}>
+            {MODE_LABELS[mode ?? 'default']}
+          </button>
+        </div>
+
+        <textarea
+          ref={textareaRef}
+          className="input-textarea"
+          value={isListening ? displayValue : text}
+          onChange={(e) => { if (!isListening) setText(e.target.value); }}
+          onKeyDown={handleKeyDown}
+          placeholder={isListening ? 'Listening...' : 'Ask anything...'}
+          rows={1}
+          readOnly={isListening || sending}
+        />
+
+        <div className="right-controls">
           {sttAvailable && (
             <button
               className={`mic-btn ${isListening ? 'mic-active' : ''}`}
