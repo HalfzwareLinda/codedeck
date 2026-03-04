@@ -23,6 +23,7 @@ import type {
   BridgeOutboundMessage,
 } from '../types';
 import { chunkBase64 } from '../utils/imageUtils';
+import { uploadToBlossom, DEFAULT_BLOSSOM_SERVER } from '../utils/blossomUpload';
 
 // Must match the bridge extension's event kinds.
 // Kind 4515 is in the regular range (1-9999) so relays store and forward reliably.
@@ -283,7 +284,9 @@ export async function sendHistoryRequest(
 
 /**
  * Send an image attachment to a Claude Code session on a remote machine.
- * The image is chunked into relay-safe pieces and sent as sequential events.
+ *
+ * Primary path: NIP-44 encrypt → upload to Blossom server → send hash reference.
+ * Fallback: chunk base64 into relay-safe pieces (legacy, if Blossom fails).
  */
 export async function sendRemoteImage(
   machine: RemoteMachine,
@@ -292,7 +295,37 @@ export async function sendRemoteImage(
   base64: string,
   filename: string,
   mimeType: string,
+  blossomServer?: string,
 ): Promise<void> {
+  if (!ownSecretKeyBytes) {
+    console.error('[Bridge] Not initialized — cannot upload image');
+    return;
+  }
+
+  // Try Blossom first (encrypted upload)
+  try {
+    const server = blossomServer || DEFAULT_BLOSSOM_SERVER;
+    const result = await uploadToBlossom(base64, ownSecretKeyBytes, machine.pubkeyHex, server);
+    const sizeBytes = Math.round(base64.length * 0.75);
+
+    const msg: BridgeOutboundMessage = {
+      type: 'upload-image',
+      sessionId,
+      hash: result.hash,
+      url: result.url,
+      filename,
+      mimeType,
+      text,
+      sizeBytes,
+    };
+    await publishToMachine(machine, msg);
+    console.log(`[Bridge] Image uploaded via Blossom: ${result.url} (${sizeBytes} bytes)`);
+    return;
+  } catch (err) {
+    console.warn('[Bridge] Blossom upload failed, falling back to relay chunking:', err);
+  }
+
+  // Fallback: legacy chunk-based relay transport
   const uploadId = crypto.randomUUID();
   const chunks = chunkBase64(base64);
 

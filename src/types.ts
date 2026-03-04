@@ -60,6 +60,7 @@ export type PanelMode = 'session' | 'dm';
 export interface NostrConfig {
   private_key_hex: string | null;
   relays: string[];
+  blossomServer?: string;
 }
 
 export interface DmConversation {
@@ -125,4 +126,5 @@ export type BridgeOutboundMessage =
   | { type: 'history-request'; sessionId: string; afterSeq?: number }
   | { type: 'create-session' }
   | { type: 'refresh-sessions' }
-  | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number };
+  | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number }
+  | { type: 'upload-image'; sessionId: string; hash: string; url: string; filename: string; mimeType: string; text: string; sizeBytes: number };

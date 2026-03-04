@@ -18,6 +18,7 @@ import {
 } from '../services/bridgeService';
 import { persistGet, persistSet } from '../services/persistStore';
 import { notifyIfNeeded } from '../services/notificationService';
+import { useDmStore } from './dmStore';
 
 interface SessionStore {
   sessions: Session[];
@@ -419,7 +420,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (machine) {
       try {
         if (image) {
-          await sendRemoteImage(machine, sessionId, text, image.base64, image.filename, image.mimeType);
+          const blossomServer = useDmStore.getState().nostrConfig.blossomServer;
+          await sendRemoteImage(machine, sessionId, text, image.base64, image.filename, image.mimeType, blossomServer);
         } else {
           await sendRemoteInput(machine, sessionId, text);
         }

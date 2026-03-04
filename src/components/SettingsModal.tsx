@@ -6,6 +6,7 @@ import { AppConfig, AgentMode, RemoteMachine } from '../types';
 import { parsePrivateKey, getPubkeyHex, parsePublicKey } from '../services/nostrService';
 import { api } from '../ipc/tauri';
 import * as nip19 from 'nostr-tools/nip19';
+import { DEFAULT_BLOSSOM_SERVER } from '../utils/blossomUpload';
 import '../styles/modal.css';
 
 export default function SettingsModal() {
@@ -35,6 +36,7 @@ export default function SettingsModal() {
   const [showNsec, setShowNsec] = useState(false);
   const [nostrKey, setNostrKey] = useState(nostrConfig.private_key_hex || '');
   const [relayList, setRelayList] = useState(nostrConfig.relays.join('\n'));
+  const [blossomServer, setBlossomServer] = useState(nostrConfig.blossomServer || '');
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'valid' | 'invalid'>('idle');
   const [apiKeyError, setApiKeyError] = useState('');
   const [newMachineNpub, setNewMachineNpub] = useState('');
@@ -47,9 +49,10 @@ export default function SettingsModal() {
     const configChanged = JSON.stringify(local) !== JSON.stringify(config);
     const nostrKeyChanged = nostrKey !== (nostrConfig.private_key_hex || '');
     const relayChanged = relayList !== nostrConfig.relays.join('\n');
+    const blossomChanged = blossomServer !== (nostrConfig.blossomServer || '');
     const hasPendingMachine = newMachineNpub.trim().length > 0;
-    return configChanged || nostrKeyChanged || relayChanged || hasPendingMachine;
-  }, [local, config, nostrKey, nostrConfig.private_key_hex, relayList, nostrConfig.relays, newMachineNpub]);
+    return configChanged || nostrKeyChanged || relayChanged || blossomChanged || hasPendingMachine;
+  }, [local, config, nostrKey, nostrConfig.private_key_hex, relayList, nostrConfig.relays, blossomServer, nostrConfig.blossomServer, newMachineNpub]);
 
   const handleClose = useCallback(() => {
     if (isDirty) {
@@ -93,6 +96,10 @@ export default function SettingsModal() {
     setNostrKey(nostrConfig.private_key_hex || '');
   }, [nostrConfig.private_key_hex]);
 
+  useEffect(() => {
+    setBlossomServer(nostrConfig.blossomServer || '');
+  }, [nostrConfig.blossomServer]);
+
   const derivedNpub = useMemo(() => {
     if (!nostrKey) return '';
     const sk = parsePrivateKey(nostrKey);
@@ -118,6 +125,7 @@ export default function SettingsModal() {
     updateNostrConfig({
       private_key_hex: privateKeyHex,
       relays: effectiveRelays,
+      blossomServer: blossomServer.trim() || undefined,
     });
 
     // Ensure bridge service is initialized before adding machines
@@ -311,6 +319,17 @@ export default function SettingsModal() {
             placeholder={'wss://relay.primal.net\nwss://nos.lol'}
             style={{ height: 80, resize: 'vertical', fontFamily: 'inherit' }}
           />
+
+          <label className="modal-label">Blossom Media Server</label>
+          <input
+            className="modal-input"
+            value={blossomServer}
+            onChange={(e) => setBlossomServer(e.target.value)}
+            placeholder={DEFAULT_BLOSSOM_SERVER}
+          />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 0 0' }}>
+            Encrypted image uploads for Claude Code sessions. Leave empty for default.
+          </div>
         </div>
 
         {/* Remote Machines (Codedeck Bridge) */}
