@@ -196,6 +196,15 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
+  const mode = useSessionStore((s) => s.remoteSessionModes[sessionId]);
+
+  // Auto-approve in bypassPermissions mode
+  useEffect(() => {
+    if (mode === 'bypassPermissions' && !responded && item.requestId) {
+      markResponded(sessionId, item.requestId);
+      respondRemotePermission(sessionId, item.requestId, true);
+    }
+  }, [mode, responded, item.requestId, sessionId, markResponded, respondRemotePermission]);
 
   // Tool-specific "always" label: WebFetch/WebSearch use per-domain allowlists
   const isWebTool = item.toolName === 'WebFetch' || item.toolName === 'WebSearch';
