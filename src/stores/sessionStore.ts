@@ -127,7 +127,6 @@ let pendingDeleteSnapshot: {
 } | null = null;
 
 const UNDO_DELAY_MS = 4_000;
-const DISMISSED_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Debounced persist for remote session metadata. Strips volatile fields (hasTerminal). */
 let persistSessionsTimer: ReturnType<typeof setTimeout> | null = null;
