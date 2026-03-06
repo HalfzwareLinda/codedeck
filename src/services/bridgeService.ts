@@ -39,6 +39,7 @@ type SessionPendingHandler = (pendingId: string, machine: string, createdAt: str
 type SessionReadyHandler = (pendingId: string, session: RemoteSessionInfo) => void;
 type SessionFailedHandler = (pendingId: string, reason: string) => void;
 type InputFailedHandler = (sessionId: string, reason: 'no-terminal' | 'expired') => void;
+type CloseSessionAckHandler = (sessionId: string, success: boolean) => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -52,6 +53,7 @@ let onSessionPending: SessionPendingHandler | null = null;
 let onSessionReady: SessionReadyHandler | null = null;
 let onSessionFailed: SessionFailedHandler | null = null;
 let onInputFailed: InputFailedHandler | null = null;
+let onCloseSessionAck: CloseSessionAckHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -96,6 +98,7 @@ export function setBridgeHandlers(
   sessionReadyHandler?: SessionReadyHandler,
   sessionFailedHandler?: SessionFailedHandler,
   inputFailedHandler?: InputFailedHandler,
+  closeSessionAckHandler?: CloseSessionAckHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
@@ -105,6 +108,7 @@ export function setBridgeHandlers(
   onSessionReady = sessionReadyHandler ?? null;
   onSessionFailed = sessionFailedHandler ?? null;
   onInputFailed = inputFailedHandler ?? null;
+  onCloseSessionAck = closeSessionAckHandler ?? null;
 }
 
 /**
@@ -256,6 +260,17 @@ export async function sendCreateSessionRequest(
   machine: RemoteMachine,
 ): Promise<void> {
   const msg: BridgeOutboundMessage = { type: 'create-session' };
+  await publishToMachine(machine, msg);
+}
+
+/**
+ * Request the bridge to close (dispose) a session's terminal.
+ */
+export async function sendCloseSessionRequest(
+  machine: RemoteMachine,
+  sessionId: string,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'close-session', sessionId };
   await publishToMachine(machine, msg);
 }
 
@@ -438,6 +453,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
         break;
       case 'input-failed':
         onInputFailed?.(msg.sessionId, msg.reason);
+        break;
+      case 'close-session-ack':
+        onCloseSessionAck?.(msg.sessionId, msg.success);
         break;
     }
   } catch (err) {

@@ -15,6 +15,7 @@ import {
   sendHistoryRequest,
   sendCreateSessionRequest,
   sendRefreshRequest,
+  sendCloseSessionRequest,
 } from '../services/bridgeService';
 import { persistGet, persistSet } from '../services/persistStore';
 import { notifyIfNeeded } from '../services/notificationService';
@@ -36,6 +37,11 @@ interface SessionStore {
   refreshing: boolean;
   /** Pending sessions awaiting JSONL file creation. Map<pendingId, metadata>. */
   pendingSessions: Map<string, { pendingId: string; machine: string; createdAt: string; timeoutId: ReturnType<typeof setTimeout> }>;
+  /** Session IDs dismissed this app session — prevents reappearance from stale session-list events.
+   *  Map<sessionId, dismissedAt timestamp> — entries older than 1 hour are pruned. */
+  dismissedSessionIds: Map<string, number>;
+  /** Undo toast state — shown briefly after deleting a remote session. */
+  undoToast: { sessionId: string; label: string } | null;
 
   setActiveSession: (id: string) => void;
   addOutput: (sessionId: string, entry: OutputEntry) => void;
@@ -62,6 +68,8 @@ interface SessionStore {
   requestSessionHistory: (sessionId: string) => Promise<void>;
   requestRefreshSessions: () => void;
   createRemoteSession: (machine: RemoteMachine) => Promise<void>;
+  deleteRemoteSession: (sessionId: string) => void;
+  undoDeleteSession: () => void;
   respondRemotePermission: (sessionId: string, requestId: string, allow: boolean, modifier?: 'always' | 'never') => Promise<void>;
   sendRemoteKeypress: (sessionId: string, key: string) => Promise<void>;
   /** Re-establish bridge subscriptions for all machines (call on foreground resume). */
@@ -105,6 +113,21 @@ const autoHistoryRequested = new Set<string>();
  *  entries — when exceeded, entries below the high-water mark are pruned. */
 const seenBridgeSeqs = new Map<string, Set<number>>();
 const MAX_SEQ_SET_SIZE = 1000;
+
+/** Pending delete: deferred close-session timer + snapshot for undo restoration. */
+let pendingDeleteTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingDeleteSnapshot: {
+  sessionId: string;
+  machine: RemoteMachine | null;
+  sessionInfo: RemoteSessionInfo | null;
+  machineKey: string | null;
+  outputs: OutputEntry[];
+  tokenUsage: TokenUsage | null;
+  mode: AgentMode | null;
+} | null = null;
+
+const UNDO_DELAY_MS = 4_000;
+const DISMISSED_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 /** Debounced persist for remote session metadata. Strips volatile fields (hasTerminal). */
 let persistSessionsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -243,6 +266,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   historyLoading: {},
   refreshing: false,
   pendingSessions: new Map(),
+  dismissedSessionIds: new Map(),
+  undoToast: null,
   respondedCards: new Map(),
 
   markCardResponded: (sessionId, cardId) => set((state) => {
@@ -634,9 +659,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           set((state) => {
             const existing = state.remoteSessions[machine.pubkeyHex] || [];
             const existingMap = new Map(existing.map(s => [s.id, s]));
-            const incomingIds = new Set(incomingSessions.map(s => s.id));
 
-            const merged = incomingSessions.map(incoming => {
+            // Filter out dismissed sessions before merging
+            const dismissedIds = state.dismissedSessionIds;
+            const filtered = dismissedIds.size > 0
+              ? incomingSessions.filter(s => !dismissedIds.has(s.id))
+              : incomingSessions;
+            // Deduplicate by session id (bridge may send dupes if multiple JSONL files share a sessionId)
+            const dedupMap = new Map<string, RemoteSessionInfo>();
+            for (const s of filtered) {
+              const ex = dedupMap.get(s.id);
+              if (!ex || s.lastActivity > ex.lastActivity) dedupMap.set(s.id, s);
+            }
+            const dedupedFiltered = [...dedupMap.values()];
+            const incomingIds = new Set(dedupedFiltered.map(s => s.id));
+
+            const merged = dedupedFiltered.map(incoming => {
               const prev = existingMap.get(incoming.id);
               if (!prev) return incoming; // new session
               if (prev.title === incoming.title && prev.lastActivity === incoming.lastActivity
@@ -1038,6 +1076,131 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     } catch (e) {
       console.error('[SessionStore] Failed to create remote session:', e);
     }
+  },
+
+  deleteRemoteSession: (sessionId) => {
+    // Cancel any previous pending delete (auto-commits it immediately)
+    if (pendingDeleteTimer) {
+      clearTimeout(pendingDeleteTimer);
+      pendingDeleteTimer = null;
+      if (pendingDeleteSnapshot) {
+        const prev = pendingDeleteSnapshot;
+        if (prev.machine) {
+          sendCloseSessionRequest(prev.machine, prev.sessionId).catch(() => {});
+        }
+        pendingDeleteSnapshot = null;
+      }
+    }
+
+    // 1. Snapshot state for undo
+    const machine = get().getMachineForSession(sessionId);
+    let sessionInfo: RemoteSessionInfo | null = null;
+    let machineKey: string | null = null;
+    for (const [key, sessions] of Object.entries(get().remoteSessions)) {
+      const found = sessions.find(s => s.id === sessionId);
+      if (found) { sessionInfo = found; machineKey = key; break; }
+    }
+    pendingDeleteSnapshot = {
+      sessionId,
+      machine,
+      sessionInfo,
+      machineKey,
+      outputs: get().outputs[sessionId] || [],
+      tokenUsage: get().tokenUsage[sessionId] || null,
+      mode: get().remoteSessionModes[sessionId] || null,
+    };
+
+    // 2. Add to dismissed map with timestamp
+    const dismissed = new Map(get().dismissedSessionIds);
+    dismissed.set(sessionId, Date.now());
+
+    // 3. Optimistic local removal
+    set((state) => {
+      const newRemoteSessions = { ...state.remoteSessions };
+      for (const [pubkeyHex, sessions] of Object.entries(newRemoteSessions)) {
+        const filtered = sessions.filter(s => s.id !== sessionId);
+        if (filtered.length !== sessions.length) {
+          newRemoteSessions[pubkeyHex] = filtered;
+        }
+      }
+
+      const { [sessionId]: _o, ...restOutputs } = state.outputs;
+      const { [sessionId]: _t, ...restUsage } = state.tokenUsage;
+      const { [sessionId]: _m, ...restModes } = state.remoteSessionModes;
+      const { [sessionId]: _h, ...restLoading } = state.historyLoading;
+
+      return {
+        remoteSessions: newRemoteSessions,
+        outputs: restOutputs,
+        tokenUsage: restUsage,
+        remoteSessionModes: restModes,
+        historyLoading: restLoading,
+        dismissedSessionIds: dismissed,
+        activeSessionId: state.activeSessionId === sessionId ? null : state.activeSessionId,
+        undoToast: { sessionId, label: sessionInfo?.title || sessionInfo?.slug || 'Session' },
+      };
+    });
+
+    seenBridgeSeqs.delete(sessionId);
+    autoHistoryRequested.delete(sessionId);
+    debouncedPersistRemoteSessions(get);
+
+    // 4. Defer bridge close-session by UNDO_DELAY_MS
+    pendingDeleteTimer = setTimeout(() => {
+      pendingDeleteTimer = null;
+      const snap = pendingDeleteSnapshot;
+      pendingDeleteSnapshot = null;
+      if (snap?.machine) {
+        sendCloseSessionRequest(snap.machine, snap.sessionId).catch(err => {
+          console.error('[SessionStore] Failed to send close-session:', err);
+        });
+      }
+      set({ undoToast: null });
+    }, UNDO_DELAY_MS);
+  },
+
+  undoDeleteSession: () => {
+    // Cancel the deferred bridge message
+    if (pendingDeleteTimer) {
+      clearTimeout(pendingDeleteTimer);
+      pendingDeleteTimer = null;
+    }
+
+    const snap = pendingDeleteSnapshot;
+    pendingDeleteSnapshot = null;
+    if (!snap) return;
+
+    // Remove from dismissed map
+    const dismissed = new Map(get().dismissedSessionIds);
+    dismissed.delete(snap.sessionId);
+
+    // Restore local state
+    set((state) => {
+      const newRemoteSessions = { ...state.remoteSessions };
+      if (snap.machineKey && snap.sessionInfo) {
+        const existing = newRemoteSessions[snap.machineKey] || [];
+        if (!existing.some(s => s.id === snap.sessionId)) {
+          newRemoteSessions[snap.machineKey] = [...existing, snap.sessionInfo];
+        }
+      }
+
+      return {
+        remoteSessions: newRemoteSessions,
+        outputs: snap.outputs.length > 0
+          ? { ...state.outputs, [snap.sessionId]: snap.outputs }
+          : state.outputs,
+        tokenUsage: snap.tokenUsage
+          ? { ...state.tokenUsage, [snap.sessionId]: snap.tokenUsage }
+          : state.tokenUsage,
+        remoteSessionModes: snap.mode
+          ? { ...state.remoteSessionModes, [snap.sessionId]: snap.mode }
+          : state.remoteSessionModes,
+        dismissedSessionIds: dismissed,
+        undoToast: null,
+      };
+    });
+
+    debouncedPersistRemoteSessions(get);
   },
 
   respondRemotePermission: async (sessionId, requestId, allow, modifier) => {

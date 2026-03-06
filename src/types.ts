@@ -116,7 +116,8 @@ export type BridgeInboundMessage =
   | { type: 'session-pending'; pendingId: string; machine: string; createdAt: string }
   | { type: 'session-ready'; pendingId: string; session: RemoteSessionInfo }
   | { type: 'session-failed'; pendingId: string; reason: string }
-  | { type: 'input-failed'; sessionId: string; reason: 'no-terminal' | 'expired' };
+  | { type: 'input-failed'; sessionId: string; reason: 'no-terminal' | 'expired' }
+  | { type: 'close-session-ack'; sessionId: string; success: boolean };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }
@@ -126,5 +127,6 @@ export type BridgeOutboundMessage =
   | { type: 'history-request'; sessionId: string; afterSeq?: number }
   | { type: 'create-session' }
   | { type: 'refresh-sessions' }
+  | { type: 'close-session'; sessionId: string }
   | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number }
   | { type: 'upload-image'; sessionId: string; hash: string; url: string; filename: string; mimeType: string; text: string; sizeBytes: number };

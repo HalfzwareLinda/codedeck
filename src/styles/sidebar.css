@@ -198,6 +198,39 @@
   40% { opacity: 1; }
 }
 
+/* --- Swipe-to-delete --- */
+
+.swipe-track {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-delete-backdrop {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  background: var(--error, #ef4444);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 20px;
+}
+
+.swipe-delete-text {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.session-card.swipe-card {
+  position: relative;
+  z-index: 1;
+  background: var(--bg-black);
+}
+
 /* --- Pull-to-refresh --- */
 
 .pull-indicator {

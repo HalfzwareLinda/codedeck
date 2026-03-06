@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
+import { useSwipeToDelete } from '../hooks/useSwipeToDelete';
 import { parsePublicKey } from '../services/nostrService';
 import { relativeTime } from '../utils/relativeTime';
 import { Session, RemoteSessionInfo } from '../types';
@@ -32,10 +33,12 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
+  const deleteSession = useSessionStore((s) => s.deleteSession);
   const isUnread = useSessionStore((s) => s.unreadSessions.has(session.id));
+  const { ref, touchHandlers } = useSwipeToDelete(() => deleteSession(session.id));
 
   const classes = [
-    'session-card',
+    'session-card swipe-card',
     isSelected ? 'selected' : '',
     stateClass(session.state),
   ].filter(Boolean).join(' ');
@@ -44,13 +47,18 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
   const showUnread = isUnread && session.state !== 'running' && session.state !== 'waiting_permission';
 
   return (
-    <div className={classes} onClick={() => { setActiveSession(session.id); setPanelMode('session'); setSidebarOpen(false); }}>
-      <div className="session-card-info">
-        <div className="session-card-name">{session.name}</div>
-        <div className="session-card-path">{session.workspace_path} · {session.branch}</div>
+    <div className="swipe-track">
+      <div className="swipe-delete-backdrop"><span className="swipe-delete-text">Delete</span></div>
+      <div ref={ref} className={classes} {...touchHandlers}
+        onClick={() => { setActiveSession(session.id); setPanelMode('session'); setSidebarOpen(false); }}
+      >
+        <div className="session-card-info">
+          <div className="session-card-name">{session.name}</div>
+          <div className="session-card-path">{session.workspace_path} · {session.branch}</div>
+        </div>
+        <StatusDot state={session.state} />
+        {showUnread && <div className="session-unread-dot" />}
       </div>
-      <StatusDot state={session.state} />
-      {showUnread && <div className="session-unread-dot" />}
     </div>
   );
 }
@@ -60,15 +68,15 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
   const requestSessionHistory = useSessionStore((s) => s.requestSessionHistory);
+  const deleteRemoteSession = useSessionStore((s) => s.deleteRemoteSession);
   const hasOutput = useSessionStore((s) => (s.outputs[session.id]?.length ?? 0) > 0);
   const isUnread = useSessionStore((s) => s.unreadSessions.has(session.id));
+  const { ref, touchHandlers } = useSwipeToDelete(() => deleteRemoteSession(session.id));
 
   const isPending = session.id.startsWith('pending:');
 
-  const classes = ['session-card', isSelected ? 'selected' : '', isPending ? 'pending' : ''].filter(Boolean).join(' ');
-
   const handleClick = () => {
-    if (isPending) return; // Non-clickable while pending
+    if (isPending) return;
     setActiveSession(session.id);
     setPanelMode('session');
     setSidebarOpen(false);
@@ -78,8 +86,9 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   };
 
   if (isPending) {
+    const pendingClasses = ['session-card', isSelected ? 'selected' : '', 'pending'].filter(Boolean).join(' ');
     return (
-      <div className={classes} style={{ opacity: 0.7, cursor: 'default' }}>
+      <div className={pendingClasses} style={{ opacity: 0.7, cursor: 'default' }}>
         <div className="session-card-info">
           <div className="session-card-name">Starting...</div>
           <div className="session-card-path">
@@ -92,19 +101,25 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   }
 
   const noTerminal = session.hasTerminal === false;
+  const classes = ['session-card swipe-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
 
   return (
-    <div className={classes} onClick={handleClick} style={noTerminal ? { opacity: 0.6 } : undefined}>
-      <div className="session-card-info">
-        <div className="session-card-name">{session.title || session.slug}</div>
-        <div className="session-card-path">
-          <span className="session-card-path-text">{session.project}</span>
-          {noTerminal && <span className="session-card-offline">offline</span>}
-          {session.permissionMode === 'bypassPermissions' && <span className="session-card-bypass">BP</span>}
-          <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
+    <div className="swipe-track">
+      <div className="swipe-delete-backdrop"><span className="swipe-delete-text">Delete</span></div>
+      <div ref={ref} className={classes} {...touchHandlers}
+        onClick={handleClick} style={noTerminal ? { opacity: 0.6 } : undefined}
+      >
+        <div className="session-card-info">
+          <div className="session-card-name">{session.title || session.slug}</div>
+          <div className="session-card-path">
+            <span className="session-card-path-text">{session.project}</span>
+            {noTerminal && <span className="session-card-offline">offline</span>}
+            {session.permissionMode === 'bypassPermissions' && <span className="session-card-bypass">BP</span>}
+            <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
+          </div>
         </div>
+        {isUnread && <div className="session-unread-dot" />}
       </div>
-      {isUnread && <div className="session-unread-dot" />}
     </div>
   );
 }
