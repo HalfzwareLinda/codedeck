@@ -32,6 +32,8 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 - **Remote bridge**: Control Claude Code sessions on your laptop from your phone via Nostr relays
 - **Deep link pairing**: Scan a QR code from the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension to pair instantly (`codedeck://pair?npub=...&relays=...&machine=...`)
 - **Create remote sessions**: Start new Claude Code sessions from the phone with two-phase lifecycle
+- **Swipe-to-delete**: Swipe left on session cards to delete with undo support
+- **Close remote sessions**: Delete remote sessions and close their terminals on the bridge
 - **Nostr DMs**: NIP-17 encrypted direct messaging between Nostr identities
 - **Speech-to-text**: Voice dictation for hands-free input
 
