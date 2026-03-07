@@ -252,6 +252,12 @@ function markUnread(state: SessionStore, sessionId: string): Partial<SessionStor
   return { unreadSessions: new Set([...state.unreadSessions, sessionId]) };
 }
 
+/** Returns true when the entry represents an interactive prompt requiring user action. */
+function needsUserInput(entry: OutputEntry): boolean {
+  const special = entry.metadata?.special as string | undefined;
+  return special === 'plan_approval' || special === 'ask_question' || special === 'permission_request';
+}
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
@@ -302,7 +308,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...last,
           content: last.content + entry.content,
         };
-        return { outputs: { ...state.outputs, [sessionId]: updated }, ...markUnread(state, sessionId) };
+        return { outputs: { ...state.outputs, [sessionId]: updated }, ...(needsUserInput(entry) ? markUnread(state, sessionId) : {}) };
       }
     }
 
@@ -359,7 +365,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (updated.length > 5000) {
       updated = updated.slice(-5000);
     }
-    return { outputs: { ...state.outputs, [sessionId]: updated }, ...markUnread(state, sessionId) };
+    return { outputs: { ...state.outputs, [sessionId]: updated }, ...(needsUserInput(entry) && !state.historyLoading[sessionId] ? markUnread(state, sessionId) : {}) };
   }),
 
   updateSession: (session) => set((state) => ({
