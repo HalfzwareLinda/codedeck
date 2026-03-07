@@ -292,6 +292,51 @@
   gap: 12px;
 }
 
+.plan-approval-options {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-option-btn {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.plan-option-btn:active {
+  background: var(--bg-hover);
+}
+
+.plan-option-primary {
+  border-color: var(--border-medium);
+}
+
+.plan-option-warn {
+  border-color: #f59e0b;
+  opacity: 0.8;
+}
+
+.plan-option-secondary {
+  border-style: dashed;
+}
+
+.plan-option-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.plan-option-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
 /* --- Question card --- */
 
 .question-card {

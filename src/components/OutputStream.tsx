@@ -112,7 +112,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   if (answered) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
-        <div className="plan-approval-label">Plan approved</div>
+        <div className="plan-approval-label">{answered}</div>
       </div>
     );
   }
@@ -130,12 +130,22 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   return (
     <div className="plan-approval-bar">
       <div className="plan-approval-label">Approve this plan?</div>
-      <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => respond('1')}>
-          Approve
+      <div className="plan-approval-actions plan-approval-options">
+        <button className="plan-option-btn plan-option-warn" onClick={() => respond('1')}>
+          <span className="plan-option-label">Clear context & auto-accept</span>
+          <span className="plan-option-desc">Starts fresh session, auto-accepts edits</span>
         </button>
-        <button className="btn-deny" onClick={() => respond('2')}>
-          Reject
+        <button className="plan-option-btn plan-option-primary" onClick={() => respond('2')}>
+          <span className="plan-option-label">Approve (auto-accept edits)</span>
+          <span className="plan-option-desc">Continues session, auto-accepts edits</span>
+        </button>
+        <button className="plan-option-btn plan-option-primary" onClick={() => respond('3')}>
+          <span className="plan-option-label">Approve (manual edits)</span>
+          <span className="plan-option-desc">Continues session, manually approve each edit</span>
+        </button>
+        <button className="plan-option-btn plan-option-secondary" onClick={() => respond('4')}>
+          <span className="plan-option-label">Revise plan</span>
+          <span className="plan-option-desc">Type feedback to change the plan</span>
         </button>
       </div>
     </div>
@@ -198,13 +208,16 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
   const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
   const mode = useSessionStore((s) => s.remoteSessionModes[sessionId]);
 
-  // Auto-approve in bypassPermissions mode
+  // Auto-approve in bypassPermissions mode, or Agent calls in plan mode
   useEffect(() => {
-    if (mode === 'bypassPermissions' && !responded && item.requestId) {
+    if (!responded && item.requestId && (
+      mode === 'bypassPermissions' ||
+      (mode === 'plan' && item.toolName === 'Agent')
+    )) {
       markResponded(sessionId, item.requestId);
       respondRemotePermission(sessionId, item.requestId, true);
     }
-  }, [mode, responded, item.requestId, sessionId, markResponded, respondRemotePermission]);
+  }, [mode, responded, item.requestId, item.toolName, sessionId, markResponded, respondRemotePermission]);
 
   // Tool-specific "always" label: WebFetch/WebSearch use per-domain allowlists
   const isWebTool = item.toolName === 'WebFetch' || item.toolName === 'WebSearch';
