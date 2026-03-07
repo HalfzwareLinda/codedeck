@@ -267,3 +267,46 @@
 }
 
 /* spin keyframe moved to global.css */
+
+/* --- Undo toast --- */
+
+.undo-toast {
+  position: fixed;
+  bottom: calc(16px + var(--keyboard-offset, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface, #2a2a2a);
+  color: var(--text-primary, #e0e0e0);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  animation: undo-slide-up 0.2s ease-out;
+}
+
+.undo-toast-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.undo-toast-btn {
+  background: none;
+  border: none;
+  color: var(--accent, #6e9eff);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+@keyframes undo-slide-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

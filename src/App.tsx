@@ -13,6 +13,7 @@ import MainPanel from './components/MainPanel';
 import SettingsModal from './components/SettingsModal';
 import NewSessionModal from './components/NewSessionModal';
 import ErrorBoundary from './components/ErrorBoundary';
+import UndoToast from './components/UndoToast';
 import './styles/global.css';
 
 function handleDeepLink(url: string): void {
@@ -158,6 +159,8 @@ export default function App() {
       </ErrorBoundary>
 
       <MainPanel isWide={isWide} />
+
+      <UndoToast />
 
       <ErrorBoundary>
       {settingsOpen && <SettingsModal />}
