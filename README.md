@@ -15,7 +15,7 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 ## Features
 
 - Multiple concurrent Claude Code agent sessions
-- Sidebar navigation with grouped sessions and **unread indicators**
+- Sidebar navigation with grouped sessions and **input-needed indicators** (dot only shows for plan approvals, questions, and permission requests)
 - PLAN mode (manual approval) and AUTO mode (auto-execute)
 - **Plan approval cards**: Approve or reject Claude's plans directly from your phone
 - **Question cards**: Answer Claude's multi-choice questions inline
