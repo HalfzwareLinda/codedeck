@@ -215,16 +215,26 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
   const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
   const mode = useSessionStore((s) => s.remoteSessionModes[sessionId]);
 
-  // Auto-approve in bypassPermissions mode, or read-only tools in plan mode
+  const shouldAutoApprove = !responded && item.requestId && (
+    mode === 'bypassPermissions' ||
+    (mode === 'plan' && PLAN_AUTO_APPROVE.has(item.toolName ?? ''))
+  );
+
+  // Send the auto-approve response to the bridge
   useEffect(() => {
-    if (!responded && item.requestId && (
-      mode === 'bypassPermissions' ||
-      (mode === 'plan' && PLAN_AUTO_APPROVE.has(item.toolName ?? ''))
-    )) {
+    if (shouldAutoApprove) {
       markResponded(sessionId, item.requestId);
       respondRemotePermission(sessionId, item.requestId, true);
     }
-  }, [mode, responded, item.requestId, item.toolName, sessionId, markResponded, respondRemotePermission]);
+  }, [shouldAutoApprove, sessionId, item.requestId, markResponded, respondRemotePermission]);
+
+  // Hide auto-approved cards entirely (no flash, no "Response sent..." noise)
+  if (shouldAutoApprove || (responded && (
+    mode === 'bypassPermissions' ||
+    (mode === 'plan' && PLAN_AUTO_APPROVE.has(item.toolName ?? ''))
+  ))) {
+    return null;
+  }
 
   // Tool-specific "always" label: WebFetch/WebSearch use per-domain allowlists
   const isWebTool = item.toolName === 'WebFetch' || item.toolName === 'WebSearch';
