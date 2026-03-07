@@ -142,7 +142,7 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
     }
   };
 
-  const MODE_CYCLE: AgentMode[] = ['default', 'acceptEdits', 'plan', 'bypassPermissions'];
+  const MODE_CYCLE: AgentMode[] = ['plan', 'bypassPermissions', 'acceptEdits'];
   const MODE_LABELS: Record<AgentMode, string> = {
     default: 'DEFAULT',
     acceptEdits: 'EDITS',
@@ -154,7 +154,7 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
 
   const cycleMode = () => {
     if (modeCooldown) return;
-    const current = mode ?? 'default';
+    const current = mode ?? 'plan';
     const idx = MODE_CYCLE.indexOf(current);
     const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
     setMode(sessionId, next);
