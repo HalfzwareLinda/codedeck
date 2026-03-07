@@ -202,17 +202,24 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
   );
 }
 
+const PLAN_AUTO_APPROVE = new Set([
+  'Agent', 'ToolSearch', 'Read', 'Glob', 'Grep',
+  'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode',
+  'TaskCreate', 'TaskGet', 'TaskList', 'TaskOutput', 'TaskUpdate',
+  'WebSearch', 'WebFetch',
+]);
+
 function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDisplay; sessionId: string }) {
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
   const mode = useSessionStore((s) => s.remoteSessionModes[sessionId]);
 
-  // Auto-approve in bypassPermissions mode, or Agent calls in plan mode
+  // Auto-approve in bypassPermissions mode, or read-only tools in plan mode
   useEffect(() => {
     if (!responded && item.requestId && (
       mode === 'bypassPermissions' ||
-      (mode === 'plan' && item.toolName === 'Agent')
+      (mode === 'plan' && PLAN_AUTO_APPROVE.has(item.toolName ?? ''))
     )) {
       markResponded(sessionId, item.requestId);
       respondRemotePermission(sessionId, item.requestId, true);
