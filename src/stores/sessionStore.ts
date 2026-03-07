@@ -715,11 +715,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           debouncedPersistRemoteSessions(get);
 
           // Reconcile permission modes: if the bridge observed a mode (from JSONL)
-          // that differs from the phone's optimistic tracking, trust the bridge
+          // that differs from the phone's optimistic tracking, trust the bridge.
+          // Exception: bypassPermissions is phone-only (maps to terminal 'default' +
+          // auto-approve), so don't overwrite bypass when bridge reports 'default'.
           const currentModes = get().remoteSessionModes;
           const modeUpdates: Record<string, AgentMode> = {};
           for (const s of incomingSessions) {
             if (s.permissionMode && currentModes[s.id] && currentModes[s.id] !== s.permissionMode) {
+              // Bridge always reports 'default' for bypass sessions — don't clobber
+              if (currentModes[s.id] === 'bypassPermissions' && s.permissionMode === 'default') {
+                continue;
+              }
               modeUpdates[s.id] = s.permissionMode;
             }
           }
