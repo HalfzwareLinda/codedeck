@@ -20,8 +20,17 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
   const [sendPop, setSendPop] = useState(false);
   const sendMessage = useSessionStore((s) => s.sendMessage);
   const setMode = useSessionStore((s) => s.setMode);
+  const pendingRevision = useSessionStore((s) => s.pendingRevisionSession === sessionId);
+  const clearPendingRevision = useSessionStore((s) => s.setPendingRevision);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus textarea when plan revision is requested
+  useEffect(() => {
+    if (pendingRevision && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [pendingRevision]);
 
   // Check if the remote session has no terminal (bridge reported hasTerminal=false).
   // The selector returns a primitive boolean, so zustand skips re-renders when the value is stable.
@@ -119,6 +128,7 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
       }
       setText('');
       removePendingImage();
+      if (pendingRevision) clearPendingRevision(null);
       setSendPop(true);
       setTimeout(() => setSendPop(false), 250);
     } finally {
@@ -227,7 +237,7 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
           value={isListening ? displayValue : text}
           onChange={(e) => { if (!isListening) setText(e.target.value); }}
           onKeyDown={handleKeyDown}
-          placeholder={isListening ? 'Listening...' : 'Ask anything...'}
+          placeholder={isListening ? 'Listening...' : pendingRevision ? 'Type your plan revision...' : 'Ask anything...'}
           rows={1}
           readOnly={isListening || sending}
         />

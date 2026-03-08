@@ -79,6 +79,9 @@ interface SessionStore {
   respondedCards: Map<string, Set<string>>;
   markCardResponded: (sessionId: string, cardId: string) => void;
   isCardResponded: (sessionId: string, cardId: string) => boolean;
+  /** Session waiting for plan revision text input. Set when user taps "Revise plan". */
+  pendingRevisionSession: string | null;
+  setPendingRevision: (sessionId: string | null) => void;
 }
 
 const defaultConfig: AppConfig = {
@@ -274,6 +277,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   dismissedSessionIds: new Map(),
   undoToast: null,
   respondedCards: new Map(),
+  pendingRevisionSession: null,
 
   markCardResponded: (sessionId, cardId) => set((state) => {
     const existing = state.respondedCards.get(sessionId);
@@ -288,6 +292,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   isCardResponded: (sessionId, cardId) => {
     return get().respondedCards.get(sessionId)?.has(cardId) ?? false;
   },
+
+  setPendingRevision: (sessionId) => set({ pendingRevisionSession: sessionId }),
 
   setActiveSession: (id) => set((state) => {
     if (!state.unreadSessions.has(id)) return { activeSessionId: id };

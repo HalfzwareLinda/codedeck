@@ -418,6 +418,43 @@
   border-radius: 4px;
 }
 
+
+.question-text-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.question-input-field {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+}
+
+.question-input-field:focus {
+  border-color: var(--accent);
+}
+
+.question-input-submit {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.question-input-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 /* --- Permission request card (distinct from plan approval) --- */
 
 .permission-request-card {

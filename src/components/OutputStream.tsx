@@ -108,6 +108,7 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
 function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string; answered?: string; cardId?: string }) {
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
+  const setPendingRevision = useSessionStore((s) => s.setPendingRevision);
   const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   if (answered) {
@@ -130,6 +131,9 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     setSelectedOption(key);
     if (cardId) markResponded(sessionId, cardId);
     sendKeypress(sessionId, key);
+    if (key === '4') {
+      setPendingRevision(sessionId);
+    }
   };
   return (
     <div className="plan-approval-bar">
@@ -156,11 +160,36 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   );
 }
 
+/** Heuristic: detect "type your own answer" style options.
+ *  Claude Code consistently places the free-text option last when there are 3+ options.
+ *  We use position as the primary signal and keyword matching as confirmation. */
+function isFreeTextOption(label: string, index: number, total: number): boolean {
+  if (total < 3) return false; // two-option questions rarely have a free-text option
+  const isLast = index === total - 1;
+  const lower = label.toLowerCase();
+  const hasKeyword = /\b(something else|your own|provide|type |write |specify|custom|other)\b/.test(lower);
+  // Last option with a keyword match → high confidence
+  return isLast && hasKeyword;
+}
+
 function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: string }) {
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
+  const sendMessage = useSessionStore((s) => s.sendMessage);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const cardId = item.entry.metadata?.tool_use_id as string | undefined;
   const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [textValue, setTextValue] = useState('');
+  const [sending, setSending] = useState(false);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus when text input appears
+  useEffect(() => {
+    if (showTextInput && textInputRef.current) {
+      textInputRef.current.focus();
+    }
+  }, [showTextInput]);
+
   if (item.answered) {
     return (
       <div className="question-card question-answered">
@@ -170,7 +199,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
       </div>
     );
   }
-  if (responded) {
+  if (responded && !showTextInput) {
     return (
       <div className="question-card question-answered">
         {item.header && <div className="question-header">{item.header}</div>}
@@ -179,29 +208,89 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
       </div>
     );
   }
+
+  const hasOptions = item.options && item.options.length > 0;
+  // Find which option (if any) is the "type your own" variant
+  const freeTextOptionIndex = hasOptions
+    ? item.options!.findIndex((opt, i) => isFreeTextOption(opt.label, i, item.options!.length))
+    : -1;
+
+  const handleTextSubmit = async () => {
+    const trimmed = textValue.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    try {
+      // If we selected a free-text option, the keypress was already sent.
+      // Now send the actual typed text as regular input.
+      if (cardId) markResponded(sessionId, cardId);
+      await sendMessage(sessionId, trimmed);
+      setShowTextInput(false);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const textInput = (
+    <div className="question-text-input">
+      <input
+        ref={textInputRef}
+        type="text"
+        className="question-input-field"
+        placeholder="Type your answer..."
+        value={textValue}
+        onChange={(e) => setTextValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleTextSubmit(); }}
+        disabled={sending}
+        autoFocus={!hasOptions}
+      />
+      <button
+        className="question-input-submit"
+        onClick={handleTextSubmit}
+        disabled={!textValue.trim() || sending}
+      >
+        {sending ? '...' : 'Send'}
+      </button>
+    </div>
+  );
+
+  // No options or already selected the free-text option → show text input
+  if (!hasOptions || showTextInput) {
+    return (
+      <div className="question-card">
+        {item.header && <div className="question-header">{item.header}</div>}
+        <div className="question-text">{item.entry.content}</div>
+        {textInput}
+      </div>
+    );
+  }
+
   return (
     <div className="question-card">
       {item.header && <div className="question-header">{item.header}</div>}
       <div className="question-text">{item.entry.content}</div>
-      {item.options && item.options.length > 0 && (
-        <div className="question-options">
-          {item.options.map((opt, i) => (
-            <button
-              key={i}
-              className="question-option-btn"
-              onClick={() => {
+      <div className="question-options">
+        {item.options!.map((opt, i) => (
+          <button
+            key={i}
+            className="question-option-btn"
+            onClick={() => {
+              if (freeTextOptionIndex === i) {
+                // Send the keypress to select this option, then show text input
+                sendKeypress(sessionId, String(i + 1));
+                setShowTextInput(true);
+              } else {
                 if (cardId) markResponded(sessionId, cardId);
                 sendKeypress(sessionId, String(i + 1));
-              }}
-            >
-              <span className="question-option-label">{opt.label}</span>
-              {opt.description && (
-                <span className="question-option-desc">{opt.description}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+              }
+            }}
+          >
+            <span className="question-option-label">{opt.label}</span>
+            {opt.description && (
+              <span className="question-option-desc">{opt.description}</span>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
