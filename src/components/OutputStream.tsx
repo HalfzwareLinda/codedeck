@@ -109,6 +109,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   if (answered) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
@@ -119,11 +120,14 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   if (responded) {
     return (
       <div className="plan-approval-bar plan-approval-answered">
-        <div className="plan-approval-label">Response sent...</div>
+        <div className="plan-approval-label">
+          {selectedOption === '4' ? 'Type your revision below' : 'Response sent...'}
+        </div>
       </div>
     );
   }
   const respond = (key: string) => {
+    setSelectedOption(key);
     if (cardId) markResponded(sessionId, cardId);
     sendKeypress(sessionId, key);
   };
