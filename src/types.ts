@@ -117,7 +117,8 @@ export type BridgeInboundMessage =
   | { type: 'session-ready'; pendingId: string; session: RemoteSessionInfo }
   | { type: 'session-failed'; pendingId: string; reason: string }
   | { type: 'input-failed'; sessionId: string; reason: 'no-terminal' | 'expired' }
-  | { type: 'close-session-ack'; sessionId: string; success: boolean };
+  | { type: 'close-session-ack'; sessionId: string; success: boolean }
+  | { type: 'session-replaced'; oldSessionId: string; newSession: RemoteSessionInfo };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }

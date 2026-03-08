@@ -40,6 +40,7 @@ type SessionReadyHandler = (pendingId: string, session: RemoteSessionInfo) => vo
 type SessionFailedHandler = (pendingId: string, reason: string) => void;
 type InputFailedHandler = (sessionId: string, reason: 'no-terminal' | 'expired') => void;
 type CloseSessionAckHandler = (sessionId: string, success: boolean) => void;
+type SessionReplacedHandler = (oldSessionId: string, newSession: RemoteSessionInfo) => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -54,6 +55,7 @@ let onSessionReady: SessionReadyHandler | null = null;
 let onSessionFailed: SessionFailedHandler | null = null;
 let onInputFailed: InputFailedHandler | null = null;
 let onCloseSessionAck: CloseSessionAckHandler | null = null;
+let onSessionReplaced: SessionReplacedHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -99,6 +101,7 @@ export function setBridgeHandlers(
   sessionFailedHandler?: SessionFailedHandler,
   inputFailedHandler?: InputFailedHandler,
   closeSessionAckHandler?: CloseSessionAckHandler,
+  sessionReplacedHandler?: SessionReplacedHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
@@ -109,6 +112,7 @@ export function setBridgeHandlers(
   onSessionFailed = sessionFailedHandler ?? null;
   onInputFailed = inputFailedHandler ?? null;
   onCloseSessionAck = closeSessionAckHandler ?? null;
+  onSessionReplaced = sessionReplacedHandler ?? null;
 }
 
 /**
@@ -458,6 +462,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
         break;
       case 'close-session-ack':
         onCloseSessionAck?.(msg.sessionId, msg.success);
+        break;
+      case 'session-replaced':
+        onSessionReplaced?.(msg.oldSessionId, msg.newSession);
         break;
     }
   } catch (err) {

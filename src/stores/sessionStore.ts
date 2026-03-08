@@ -994,6 +994,54 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           return { respondedCards: next };
         });
       },
+      // onCloseSessionAck — no-op (handled elsewhere)
+      undefined,
+      // onSessionReplaced — swap old session for new one at same sidebar position
+      (oldSessionId, newSession) => {
+        console.log(`[SessionStore] Session replaced: ${oldSessionId} → ${newSession.id}`);
+        set((state) => {
+          const newRemoteSessions = { ...state.remoteSessions };
+
+          // Find the machine containing the old session
+          for (const [pubkeyHex, sessions] of Object.entries(newRemoteSessions)) {
+            const idx = sessions.findIndex(s => s.id === oldSessionId);
+            if (idx >= 0) {
+              // Replace at same index (preserves sidebar position)
+              const updated = [...sessions];
+              updated[idx] = newSession;
+              newRemoteSessions[pubkeyHex] = updated;
+              break;
+            }
+          }
+
+          // Transfer mode, clear old outputs (context was cleared)
+          const newModes = { ...state.remoteSessionModes };
+          if (newModes[oldSessionId]) {
+            newModes[newSession.id] = newModes[oldSessionId];
+            delete newModes[oldSessionId];
+          }
+
+          const newOutputs = { ...state.outputs };
+          delete newOutputs[oldSessionId];
+
+          const newTokenUsage = { ...state.tokenUsage };
+          delete newTokenUsage[oldSessionId];
+
+          // Clear responded cards for old session
+          const newRespondedCards = new Map(state.respondedCards);
+          newRespondedCards.delete(oldSessionId);
+
+          return {
+            remoteSessions: newRemoteSessions,
+            remoteSessionModes: newModes,
+            outputs: newOutputs,
+            tokenUsage: newTokenUsage,
+            respondedCards: newRespondedCards,
+            activeSessionId: state.activeSessionId === oldSessionId ? newSession.id : state.activeSessionId,
+          };
+        });
+        debouncedPersistRemoteSessions(get);
+      },
     );
 
     // Restore persisted remote session metadata (titles, etc.) before connecting
