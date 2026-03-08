@@ -129,4 +129,4 @@ export type BridgeOutboundMessage =
   | { type: 'refresh-sessions' }
   | { type: 'close-session'; sessionId: string }
   | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number }
-  | { type: 'upload-image'; sessionId: string; hash: string; url: string; filename: string; mimeType: string; text: string; sizeBytes: number };
+  | { type: 'upload-image'; sessionId: string; hash: string; url: string; key: string; iv: string; filename: string; mimeType: string; text: string; sizeBytes: number };

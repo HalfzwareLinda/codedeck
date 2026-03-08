@@ -300,7 +300,7 @@ export async function sendHistoryRequest(
 /**
  * Send an image attachment to a Claude Code session on a remote machine.
  *
- * Primary path: NIP-44 encrypt → upload to Blossom server → send hash reference.
+ * Primary path: AES-256-GCM encrypt → upload to Blossom server → send hash + key/IV reference.
  * Fallback: chunk base64 into relay-safe pieces (legacy, if Blossom fails).
  */
 export async function sendRemoteImage(
@@ -320,7 +320,7 @@ export async function sendRemoteImage(
   // Try Blossom first (encrypted upload)
   try {
     const server = blossomServer || DEFAULT_BLOSSOM_SERVER;
-    const result = await uploadToBlossom(base64, ownSecretKeyBytes, machine.pubkeyHex, server);
+    const result = await uploadToBlossom(base64, ownSecretKeyBytes, server);
     const sizeBytes = Math.round(base64.length * 0.75);
 
     const msg: BridgeOutboundMessage = {
@@ -328,6 +328,8 @@ export async function sendRemoteImage(
       sessionId,
       hash: result.hash,
       url: result.url,
+      key: result.key,
+      iv: result.iv,
       filename,
       mimeType,
       text,

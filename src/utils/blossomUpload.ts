@@ -2,15 +2,15 @@
  * Blossom (BUD-01/02) upload utility for encrypted media exchange.
  *
  * Flow:
- * 1. NIP-44 encrypt the base64 image data (server sees only random bytes)
+ * 1. AES-256-GCM encrypt the raw image bytes (no size limit)
  * 2. Compute SHA-256 hash of the encrypted payload
  * 3. Sign a BUD-02 authorization event (kind 24242)
  * 4. HTTP PUT to Blossom server with signed auth header
+ * 5. Return hash, URL, and AES key+IV (sent to bridge via NIP-44 message)
  *
- * The bridge downloads the encrypted blob, verifies the hash, and decrypts.
+ * The bridge downloads the encrypted blob, verifies the hash, and AES-GCM decrypts.
  */
 
-import { encrypt, getConversationKey } from 'nostr-tools/nip44';
 import { finalizeEvent } from 'nostr-tools/pure';
 
 export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net';
@@ -20,30 +20,38 @@ export interface BlossomUploadResult {
   hash: string;
   /** Full URL to download the blob: ${server}/${hash} */
   url: string;
+  /** Hex-encoded AES-256 key (32 bytes) */
+  key: string;
+  /** Hex-encoded AES-GCM IV (12 bytes) */
+  iv: string;
 }
 
 /**
- * Encrypt image data with NIP-44 and upload to a Blossom server.
+ * AES-256-GCM encrypt image data and upload to a Blossom server.
  *
  * @param base64Data - Raw base64-encoded image (no data: prefix)
- * @param secretKeyBytes - Phone's Nostr private key (Uint8Array)
- * @param bridgePubkeyHex - Bridge's public key hex (for NIP-44 conversation key)
+ * @param secretKeyBytes - Phone's Nostr private key (Uint8Array) — used for BUD-02 auth signing
  * @param serverUrl - Blossom server base URL (e.g., https://blossom.primal.net)
- * @returns Hash and URL of the uploaded encrypted blob
+ * @returns Hash, URL, key, and IV of the uploaded encrypted blob
  */
 export async function uploadToBlossom(
   base64Data: string,
   secretKeyBytes: Uint8Array,
-  bridgePubkeyHex: string,
   serverUrl: string = DEFAULT_BLOSSOM_SERVER,
 ): Promise<BlossomUploadResult> {
-  // 1. NIP-44 encrypt the base64 string
-  const conversationKey = getConversationKey(secretKeyBytes, bridgePubkeyHex);
-  const encrypted = encrypt(base64Data, conversationKey);
+  // 1. Decode base64 to raw image bytes
+  const binaryString = atob(base64Data);
+  const rawBytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    rawBytes[i] = binaryString.charCodeAt(i);
+  }
 
-  // 2. Convert encrypted string to bytes for upload
-  const encoder = new TextEncoder();
-  const encryptedBytes = encoder.encode(encrypted);
+  // 2. AES-256-GCM encrypt (no size limit)
+  const key = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cryptoKey = await crypto.subtle.importKey('raw', key, 'AES-GCM', false, ['encrypt']);
+  const encryptedBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, rawBytes);
+  const encryptedBytes = new Uint8Array(encryptedBuffer);
 
   // 3. Compute SHA-256 hash of the encrypted payload
   const hashBuffer = await crypto.subtle.digest('SHA-256', encryptedBytes);
@@ -82,7 +90,7 @@ export async function uploadToBlossom(
   }
 
   const blobUrl = `${serverUrl.replace(/\/$/, '')}/${hashHex}`;
-  return { hash: hashHex, url: blobUrl };
+  return { hash: hashHex, url: blobUrl, key: bytesToHex(key), iv: bytesToHex(iv) };
 }
 
 function bytesToHex(bytes: Uint8Array): string {
