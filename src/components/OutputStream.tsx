@@ -166,15 +166,16 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
 }
 
 /** Heuristic: detect "type your own answer" style options.
- *  Claude Code consistently places the free-text option last when there are 3+ options.
- *  We use position as the primary signal and keyword matching as confirmation. */
+ *  High-confidence phrases match at any position;
+ *  lower-confidence keywords still require last position. */
 function isFreeTextOption(label: string, index: number, total: number): boolean {
-  if (total < 3) return false; // two-option questions rarely have a free-text option
-  const isLast = index === total - 1;
+  if (total < 3) return false;
   const lower = label.toLowerCase();
-  const hasKeyword = /\b(something else|your own|provide|type |write |specify|custom|other)\b/.test(lower);
-  // Last option with a keyword match → high confidence
-  return isLast && hasKeyword;
+  // High-confidence: unambiguous free-text phrases — match anywhere
+  if (/\b(something else|your own|type something|type your )\b/.test(lower)) return true;
+  // Lower-confidence: only trust at last position
+  const isLast = index === total - 1;
+  return isLast && /\b(provide|write |specify|custom|other)\b/.test(lower);
 }
 
 function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: string }) {
