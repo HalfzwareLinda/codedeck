@@ -463,6 +463,14 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
   autoScrollRef.current = autoScroll;
   displayLenRef.current = display.length;
 
+  // Guarded scroll-to-end: always reads displayLenRef at call time to avoid stale indices
+  const safeScrollToEnd = useCallback(() => {
+    const len = displayLenRef.current;
+    if (listRef.current && len > 0) {
+      listRef.current.scrollToRow({ index: len - 1, align: 'end' });
+    }
+  }, [listRef]);
+
   // Reset scroll state on session switch — ensures new sessions open at the bottom
   useEffect(() => {
     setAutoScroll(true);
@@ -470,16 +478,8 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     setShowPill(false);
     setPrevCount(0);
 
-    const t1 = setTimeout(() => {
-      if (listRef.current && displayLenRef.current > 0) {
-        listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
-      }
-    }, 50);
-    const t2 = setTimeout(() => {
-      if (listRef.current && displayLenRef.current > 0) {
-        listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
-      }
-    }, 300);
+    const t1 = setTimeout(safeScrollToEnd, 50);
+    const t2 = setTimeout(safeScrollToEnd, 300);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -500,9 +500,7 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     const inner = el.firstElementChild;
     if (!inner) return;
     const observer = new ResizeObserver(() => {
-      if (autoScrollRef.current && listRef.current && displayLenRef.current > 0) {
-        listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
-      }
+      if (autoScrollRef.current) safeScrollToEnd();
     });
     observer.observe(inner);
     return () => observer.disconnect();
@@ -512,29 +510,21 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     if (display.length > 0 && prevCount === 0) {
       // Small delay to let react-window measure row heights
-      const timer = setTimeout(() => {
-        if (listRef.current) {
-          listRef.current.scrollToRow({ index: display.length - 1, align: 'end' });
-        }
-      }, 100);
+      const timer = setTimeout(safeScrollToEnd, 100);
       return () => clearTimeout(timer);
     }
   }, [display.length, prevCount, listRef]);
 
   // On container resize (orientation change, keyboard), re-scroll if auto-scroll is on
   const handleResize = useCallback((_size: { height: number; width: number }) => {
-    if (autoScrollRef.current && listRef.current && displayLenRef.current > 0) {
-      listRef.current.scrollToRow({ index: displayLenRef.current - 1, align: 'end' });
-    }
-  }, [listRef]);
+    if (autoScrollRef.current) safeScrollToEnd();
+  }, [safeScrollToEnd]);
 
   const scrollToBottom = useCallback(() => {
-    if (listRef.current && display.length > 0) {
-      listRef.current.scrollToRow({ index: display.length - 1, align: 'end' });
-      setAutoScroll(true);
-      setShowPill(false);
-    }
-  }, [display.length, listRef]);
+    safeScrollToEnd();
+    setAutoScroll(true);
+    setShowPill(false);
+  }, [safeScrollToEnd]);
 
   // Track scroll position to detect manual scroll-away
   const handleNativeScroll = useCallback(() => {
