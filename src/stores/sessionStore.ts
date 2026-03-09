@@ -685,9 +685,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             const dedupedFiltered = [...dedupMap.values()];
             const incomingIds = new Set(dedupedFiltered.map(s => s.id));
 
+            const newSessionModes: Record<string, AgentMode> = {};
             const merged = dedupedFiltered.map(incoming => {
               const prev = existingMap.get(incoming.id);
-              if (!prev) return incoming; // new session
+              if (!prev) {
+                // New session — initialize mode from bridge (default to 'plan')
+                if (!state.remoteSessionModes[incoming.id]) {
+                  newSessionModes[incoming.id] = incoming.permissionMode ?? 'plan';
+                }
+                return incoming;
+              }
               if (prev.title === incoming.title && prev.lastActivity === incoming.lastActivity
                   && prev.lineCount === incoming.lineCount && prev.project === incoming.project
                   && prev.cwd === incoming.cwd) {
@@ -713,6 +720,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
             return {
               remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: merged },
+              remoteSessionModes: Object.keys(newSessionModes).length > 0
+                ? { ...state.remoteSessionModes, ...newSessionModes }
+                : state.remoteSessionModes,
               refreshing: false,
             };
           });
@@ -727,12 +737,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           const currentModes = get().remoteSessionModes;
           const modeUpdates: Record<string, AgentMode> = {};
           for (const s of incomingSessions) {
-            if (s.permissionMode && currentModes[s.id] && currentModes[s.id] !== s.permissionMode) {
+            const current = currentModes[s.id];
+            const reported = s.permissionMode;
+            if (!reported) continue;
+            if (!current) {
+              // New session — initialize mode from bridge
+              modeUpdates[s.id] = reported;
+            } else if (current !== reported) {
               // Bridge always reports 'default' for bypass sessions — don't clobber
-              if (currentModes[s.id] === 'bypassPermissions' && s.permissionMode === 'default') {
-                continue;
-              }
-              modeUpdates[s.id] = s.permissionMode;
+              if (current === 'bypassPermissions' && reported === 'default') continue;
+              modeUpdates[s.id] = reported;
             }
           }
           if (Object.keys(modeUpdates).length > 0) {
