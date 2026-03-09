@@ -109,6 +109,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const setPendingRevision = useSessionStore((s) => s.setPendingRevision);
+  const setModeLocal = useSessionStore((s) => s.setRemoteSessionModeLocal);
   const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   if (answered) {
@@ -131,7 +132,11 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     setSelectedOption(key);
     if (cardId) markResponded(sessionId, cardId);
     sendKeypress(sessionId, key);
-    if (key === '4') {
+    if (key === '1' || key === '2') {
+      setModeLocal(sessionId, 'acceptEdits');
+    } else if (key === '3') {
+      setModeLocal(sessionId, 'default');
+    } else if (key === '4') {
       setPendingRevision(sessionId);
     }
   };

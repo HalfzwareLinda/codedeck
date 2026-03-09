@@ -56,6 +56,7 @@ interface SessionStore {
   cancelAgent: (sessionId: string) => Promise<void>;
   respondPermission: (sessionId: string, requestId: string, allow: boolean) => Promise<void>;
   setMode: (sessionId: string, mode: AgentMode) => Promise<void>;
+  setRemoteSessionModeLocal: (sessionId: string, mode: AgentMode) => void;
   updateConfig: (config: AppConfig) => Promise<void>;
   initEventListeners: () => Promise<void>;
 
@@ -566,6 +567,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sessions: state.sessions.map((s) => s.id === sessionId ? { ...s, mode } : s),
     }));
     if (isTauri()) await api.setMode(sessionId, mode);
+  },
+
+  setRemoteSessionModeLocal: (sessionId, mode) => {
+    set((state) => ({
+      remoteSessionModes: { ...state.remoteSessionModes, [sessionId]: mode },
+    }));
   },
 
   updateConfig: async (config) => {
