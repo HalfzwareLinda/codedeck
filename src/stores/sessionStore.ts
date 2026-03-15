@@ -94,7 +94,7 @@ const defaultConfig: AppConfig = {
   notifications_enabled: true,
   workspace_base_path: '',
   max_sessions: 20,
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-opus-4-6',
 };
 
 // --- History chunk tracking (module-level, not in store state) ---

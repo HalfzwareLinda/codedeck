@@ -29,7 +29,7 @@ export default function SettingsModal() {
     notifications_enabled: true,
     workspace_base_path: '',
     max_sessions: 20,
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-opus-4-6',
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [showPat, setShowPat] = useState(false);
