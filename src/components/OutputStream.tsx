@@ -12,6 +12,7 @@ import {
   ToolGroupDisplay,
   PlanApprovalDisplay,
   QuestionDisplay,
+  QuestionGroupDisplay,
   PermissionRequestDisplay,
 } from '../hooks/useDisplayEntries';
 import '../styles/output.css';
@@ -301,9 +302,180 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
   );
 }
 
+function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; sessionId: string }) {
+  const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
+  const sendMessage = useSessionStore((s) => s.sendMessage);
+  const markResponded = useSessionStore((s) => s.markCardResponded);
+  const isCardResponded = useSessionStore((s) => s.isCardResponded);
+
+  // Per-question response tracking uses composite card IDs: "toolUseId:q0", "toolUseId:q1", etc.
+  const { toolUseId, questions } = item;
+
+  // Determine which questions are already answered (from store, survives re-renders)
+  const answeredSet = new Set<number>();
+  for (let i = 0; i < questions.length; i++) {
+    if (isCardResponded(sessionId, `${toolUseId}:q${i}`)) {
+      answeredSet.add(i);
+    }
+  }
+
+  // Active tab = first unanswered question
+  const firstUnanswered = questions.findIndex((_, i) => !answeredSet.has(i));
+  const allAnswered = firstUnanswered === -1;
+  const [activeTab, setActiveTab] = useState(() => allAnswered ? 0 : firstUnanswered);
+
+  // Per-question text input state
+  const [showTextInput, setShowTextInput] = useState(false);
+  const [textValue, setTextValue] = useState('');
+  const [sending, setSending] = useState(false);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showTextInput && textInputRef.current) {
+      textInputRef.current.focus();
+    }
+  }, [showTextInput]);
+
+  // Auto-advance activeTab when a question gets answered
+  useEffect(() => {
+    if (!allAnswered && activeTab !== firstUnanswered) {
+      setActiveTab(firstUnanswered);
+      setShowTextInput(false);
+      setTextValue('');
+    }
+  }, [firstUnanswered, allAnswered]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Completed state (from bridge tool_result)
+  if (item.answered) {
+    return (
+      <div className="question-card question-answered">
+        <div className="question-tabs">
+          {questions.map((q, i) => (
+            <div key={i} className="question-tab question-tab-done">
+              {q.header ?? `Question ${i + 1}`}
+            </div>
+          ))}
+        </div>
+        <div className="question-answer">{item.answered}</div>
+      </div>
+    );
+  }
+
+  // All answered locally
+  if (allAnswered) {
+    return (
+      <div className="question-card question-answered">
+        <div className="question-tabs">
+          {questions.map((q, i) => (
+            <div key={i} className="question-tab question-tab-done">
+              {q.header ?? `Question ${i + 1}`}
+            </div>
+          ))}
+        </div>
+        <div className="question-answer">All responses sent</div>
+      </div>
+    );
+  }
+
+  const activeQuestion = questions[activeTab];
+  const hasOptions = activeQuestion.options && activeQuestion.options.length > 0;
+  const freeTextOptionIndex = hasOptions
+    ? activeQuestion.options!.findIndex((opt, i) => isFreeTextOption(opt.label, i, activeQuestion.options!.length))
+    : -1;
+
+  const handleAnswer = (optionIndex: number) => {
+    if (freeTextOptionIndex === optionIndex) {
+      sendKeypress(sessionId, String(optionIndex + 1));
+      setShowTextInput(true);
+    } else {
+      markResponded(sessionId, `${toolUseId}:q${activeTab}`);
+      sendKeypress(sessionId, String(optionIndex + 1));
+    }
+  };
+
+  const handleTextSubmit = async () => {
+    const trimmed = textValue.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    try {
+      markResponded(sessionId, `${toolUseId}:q${activeTab}`);
+      await sendMessage(sessionId, trimmed);
+      setShowTextInput(false);
+      setTextValue('');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const textInput = (
+    <div className="question-text-input">
+      <input
+        ref={textInputRef}
+        type="text"
+        className="question-input-field"
+        placeholder="Type your answer..."
+        value={textValue}
+        onChange={(e) => setTextValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleTextSubmit(); }}
+        disabled={sending}
+        autoFocus={!hasOptions}
+      />
+      <button
+        className="question-input-submit"
+        onClick={handleTextSubmit}
+        disabled={!textValue.trim() || sending}
+      >
+        {sending ? '...' : 'Send'}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="question-card">
+      <div className="question-tabs">
+        {questions.map((q, i) => {
+          const isDone = answeredSet.has(i);
+          const isActive = i === activeTab;
+          const isFuture = i > firstUnanswered;
+          let cls = 'question-tab';
+          if (isActive) cls += ' question-tab-active';
+          else if (isDone) cls += ' question-tab-done';
+          else if (isFuture) cls += ' question-tab-disabled';
+          return (
+            <button
+              key={i}
+              className={cls}
+              disabled={isFuture || isDone}
+              onClick={() => { if (!isFuture && !isDone) setActiveTab(i); }}
+            >
+              {isDone && <span className="question-tab-check">&#x2713; </span>}
+              {q.header ?? `Question ${i + 1}`}
+            </button>
+          );
+        })}
+      </div>
+      <div className="question-text">{activeQuestion.entry.content}</div>
+      {(!hasOptions || showTextInput) ? (
+        textInput
+      ) : (
+        <div className="question-options">
+          {activeQuestion.options!.map((opt, i) => (
+            <button key={i} className="question-option-btn" onClick={() => handleAnswer(i)}>
+              <span className="question-option-label">{opt.label}</span>
+              {opt.description && (
+                <span className="question-option-desc">{opt.description}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PLAN_AUTO_APPROVE = new Set([
   'Agent', 'ToolSearch', 'Read', 'Glob', 'Grep',
-  'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode',
+  'AskUserQuestion', 'EnterPlanMode',
   'TaskCreate', 'TaskGet', 'TaskList', 'TaskOutput', 'TaskUpdate',
   'WebSearch', 'WebFetch',
 ]);
@@ -401,6 +573,8 @@ function DisplayItem({
       return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
+    case 'question_group':
+      return <QuestionGroupEntry item={item} sessionId={sessionId} />;
     case 'permission_request':
       return <PermissionRequestEntry item={item} sessionId={sessionId} />;
     default:
