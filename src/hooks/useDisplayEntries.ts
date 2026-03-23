@@ -51,6 +51,20 @@ export interface QuestionDisplay extends DisplayEntryBase {
   answered?: string;
 }
 
+export interface QuestionGroupQuestion {
+  entry: OutputEntry;
+  header?: string;
+  options?: Array<{ label: string; description?: string }>;
+  multiSelect?: boolean;
+}
+
+export interface QuestionGroupDisplay extends DisplayEntryBase {
+  kind: 'question_group';
+  toolUseId: string;
+  questions: QuestionGroupQuestion[];
+  answered?: string;
+}
+
 export interface PermissionRequestDisplay extends DisplayEntryBase {
   kind: 'permission_request';
   entry: OutputEntry;
@@ -68,6 +82,7 @@ export type DisplayEntry =
   | DiffDisplay
   | PlanApprovalDisplay
   | QuestionDisplay
+  | QuestionGroupDisplay
   | PermissionRequestDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
@@ -124,6 +139,11 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   let toolGroupStart = 0;
   const answeredMap = collectAnsweredToolUseIds(outputs);
 
+  // Question group buffering (groups consecutive ask_question entries with same tool_use_id)
+  let pendingQuestions: QuestionGroupQuestion[] = [];
+  let pendingQuestionToolUseId: string | null = null;
+  let pendingQuestionStart = 0;
+
   function flushToolGroup() {
     if (currentToolGroup.length > 0) {
       display.push({
@@ -136,11 +156,49 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     }
   }
 
+  function flushQuestionGroup() {
+    if (pendingQuestions.length === 0) return;
+    const toolUseId = pendingQuestionToolUseId!;
+    const answerContent = answeredMap.get(toolUseId);
+    // Check metadata for expected question count (bridge v0.3.4+ includes question_index/question_count)
+    const expectedCount = pendingQuestions[0].entry.metadata?.question_count as number | undefined;
+    const isMulti = expectedCount != null ? expectedCount > 1 : pendingQuestions.length > 1;
+    if (!isMulti) {
+      // Single question — emit as regular QuestionDisplay (no tabs needed)
+      const q = pendingQuestions[0];
+      display.push({
+        kind: 'question',
+        entry: q.entry,
+        header: q.header,
+        options: q.options,
+        sourceStart: pendingQuestionStart,
+        answered: answerContent,
+      });
+    } else {
+      // Sort by question_index if available (robust against out-of-order delivery)
+      pendingQuestions.sort((a, b) => {
+        const ai = (a.entry.metadata?.question_index as number) ?? 0;
+        const bi = (b.entry.metadata?.question_index as number) ?? 0;
+        return ai - bi;
+      });
+      display.push({
+        kind: 'question_group',
+        toolUseId,
+        questions: pendingQuestions,
+        sourceStart: pendingQuestionStart,
+        answered: answerContent,
+      });
+    }
+    pendingQuestions = [];
+    pendingQuestionToolUseId = null;
+  }
+
   for (let i = 0; i < outputs.length; i++) {
     const entry = outputs[i];
 
     // Group consecutive tool entries
     if (isToolEntry(entry)) {
+      flushQuestionGroup();
       if (currentToolGroup.length === 0) {
         toolGroupStart = i;
       }
@@ -153,6 +211,27 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
 
     const special = entry.metadata?.special as string | undefined;
     const toolUseId = entry.metadata?.tool_use_id as string | undefined;
+
+    // Buffer consecutive ask_question entries with same tool_use_id
+    if (special === 'ask_question') {
+      if (pendingQuestionToolUseId && toolUseId !== pendingQuestionToolUseId) {
+        flushQuestionGroup();
+      }
+      if (pendingQuestions.length === 0) {
+        pendingQuestionStart = i;
+        pendingQuestionToolUseId = toolUseId ?? null;
+      }
+      pendingQuestions.push({
+        entry,
+        header: entry.metadata?.header as string | undefined,
+        options: entry.metadata?.options as Array<{ label: string; description?: string }> | undefined,
+        multiSelect: entry.metadata?.multiSelect as boolean | undefined,
+      });
+      continue;
+    }
+
+    // Non-question entry — flush any pending question group
+    flushQuestionGroup();
 
     // Skip answered permission_request entries (bridge pre-filters these for history)
     if (special === 'permission_request' && toolUseId && answeredMap.has(toolUseId)) {
@@ -174,17 +253,6 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
         description: entry.content,
         requestId: toolUseId ?? '',
         sourceStart: i,
-      });
-      continue;
-    }
-    if (special === 'ask_question') {
-      display.push({
-        kind: 'question',
-        entry,
-        header: entry.metadata?.header as string | undefined,
-        options: entry.metadata?.options as Array<{ label: string; description?: string }> | undefined,
-        sourceStart: i,
-        answered: answerContent,
       });
       continue;
     }
@@ -210,7 +278,8 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     }
   }
 
-  // Flush any trailing tool group
+  // Flush any trailing groups
+  flushQuestionGroup();
   flushToolGroup();
 
   return display;

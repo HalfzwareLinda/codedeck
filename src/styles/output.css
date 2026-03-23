@@ -396,6 +396,55 @@
   margin-top: 2px;
 }
 
+/* --- Question group tab bar --- */
+
+.question-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0;
+}
+
+.question-tab {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.question-tab-active {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: -1px;
+}
+
+.question-tab-done {
+  color: var(--text-muted);
+  opacity: 0.7;
+  cursor: default;
+}
+
+.question-tab-disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: default;
+}
+
+.question-tab-check {
+  color: var(--status-success, #22c55e);
+}
+
 /* --- Answered/completed state for interactive cards --- */
 
 .plan-approval-answered,
