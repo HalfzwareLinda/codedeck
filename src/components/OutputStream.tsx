@@ -473,43 +473,10 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
   );
 }
 
-const PLAN_AUTO_APPROVE = new Set([
-  'Agent', 'ToolSearch', 'Read', 'Glob', 'Grep',
-  'AskUserQuestion', 'EnterPlanMode',
-  'TaskCreate', 'TaskGet', 'TaskList', 'TaskOutput', 'TaskUpdate',
-  'WebSearch', 'WebFetch',
-]);
-
 function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDisplay; sessionId: string }) {
   const respondRemotePermission = useSessionStore((s) => s.respondRemotePermission);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const responded = useSessionStore((s) => s.isCardResponded(sessionId, item.requestId));
-  const mode = useSessionStore((s) => s.remoteSessionModes[sessionId]);
-
-  const shouldAutoApprove = !responded && item.requestId && (
-    mode === 'bypassPermissions' ||
-    (mode === 'plan' && PLAN_AUTO_APPROVE.has(item.toolName ?? ''))
-  );
-
-  // Send the auto-approve response to the bridge
-  useEffect(() => {
-    if (shouldAutoApprove) {
-      markResponded(sessionId, item.requestId);
-      respondRemotePermission(sessionId, item.requestId, true);
-    }
-  }, [shouldAutoApprove, sessionId, item.requestId, markResponded, respondRemotePermission]);
-
-  // Hide auto-approved cards entirely (no flash, no "Response sent..." noise)
-  if (shouldAutoApprove || (responded && (
-    mode === 'bypassPermissions' ||
-    (mode === 'plan' && PLAN_AUTO_APPROVE.has(item.toolName ?? ''))
-  ))) {
-    return null;
-  }
-
-  // Tool-specific "always" label: WebFetch/WebSearch use per-domain allowlists
-  const isWebTool = item.toolName === 'WebFetch' || item.toolName === 'WebSearch';
-  const alwaysLabel = isWebTool ? 'Allow domain' : 'Always';
 
   if (responded) {
     return (
@@ -520,6 +487,11 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
       </div>
     );
   }
+
+  // Tool-specific "always" label: WebFetch/WebSearch use per-domain allowlists
+  const isWebTool = item.toolName === 'WebFetch' || item.toolName === 'WebSearch';
+  const alwaysLabel = isWebTool ? 'Allow domain' : 'Always';
+
   const respond = (allow: boolean, modifier?: 'always' | 'never') => {
     markResponded(sessionId, item.requestId);
     respondRemotePermission(sessionId, item.requestId, allow, modifier);
@@ -529,15 +501,9 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
       <div className="plan-approval-label">{item.toolName}</div>
       <div className="output-system" style={{ margin: '4px 0 8px' }}>{item.description}</div>
       <div className="plan-approval-actions">
-        <button className="btn-allow" onClick={() => respond(true)}>
-          Allow
-        </button>
-        <button className="btn-always" onClick={() => respond(true, 'always')}>
-          {alwaysLabel}
-        </button>
-        <button className="btn-deny" onClick={() => respond(false)}>
-          Deny
-        </button>
+        <button className="btn-allow" onClick={() => respond(true)}>Allow</button>
+        <button className="btn-always" onClick={() => respond(true, 'always')}>{alwaysLabel}</button>
+        <button className="btn-deny" onClick={() => respond(false)}>Deny</button>
       </div>
     </div>
   );

@@ -41,6 +41,7 @@ type SessionFailedHandler = (pendingId: string, reason: string) => void;
 type InputFailedHandler = (sessionId: string, reason: 'no-terminal' | 'expired') => void;
 type CloseSessionAckHandler = (sessionId: string, success: boolean) => void;
 type SessionReplacedHandler = (oldSessionId: string, newSession: RemoteSessionInfo) => void;
+type ModeConfirmedHandler = (sessionId: string, mode: import('../types').AgentMode) => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -56,6 +57,7 @@ let onSessionFailed: SessionFailedHandler | null = null;
 let onInputFailed: InputFailedHandler | null = null;
 let onCloseSessionAck: CloseSessionAckHandler | null = null;
 let onSessionReplaced: SessionReplacedHandler | null = null;
+let onModeConfirmed: ModeConfirmedHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -102,6 +104,7 @@ export function setBridgeHandlers(
   inputFailedHandler?: InputFailedHandler,
   closeSessionAckHandler?: CloseSessionAckHandler,
   sessionReplacedHandler?: SessionReplacedHandler,
+  modeConfirmedHandler?: ModeConfirmedHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
@@ -113,6 +116,7 @@ export function setBridgeHandlers(
   onInputFailed = inputFailedHandler ?? null;
   onCloseSessionAck = closeSessionAckHandler ?? null;
   onSessionReplaced = sessionReplacedHandler ?? null;
+  onModeConfirmed = modeConfirmedHandler ?? null;
 }
 
 /**
@@ -465,6 +469,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
         break;
       case 'session-replaced':
         onSessionReplaced?.(msg.oldSessionId, msg.newSession);
+        break;
+      case 'mode-confirmed':
+        onModeConfirmed?.(msg.sessionId, msg.mode);
         break;
     }
   } catch (err) {

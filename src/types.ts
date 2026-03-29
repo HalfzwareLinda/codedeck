@@ -118,7 +118,8 @@ export type BridgeInboundMessage =
   | { type: 'session-failed'; pendingId: string; reason: string }
   | { type: 'input-failed'; sessionId: string; reason: 'no-terminal' | 'expired' }
   | { type: 'close-session-ack'; sessionId: string; success: boolean }
-  | { type: 'session-replaced'; oldSessionId: string; newSession: RemoteSessionInfo };
+  | { type: 'session-replaced'; oldSessionId: string; newSession: RemoteSessionInfo }
+  | { type: 'mode-confirmed'; sessionId: string; mode: AgentMode };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }

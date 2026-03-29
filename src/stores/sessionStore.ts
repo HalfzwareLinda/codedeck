@@ -1069,6 +1069,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         });
         debouncedPersistRemoteSessions(get);
       },
+      // onModeConfirmed — fast feedback from bridge after mode switch
+      (sessionId: string, mode: AgentMode) => {
+        set((state) => ({
+          remoteSessionModes: { ...state.remoteSessionModes, [sessionId]: mode },
+        }));
+      },
     );
 
     // Restore persisted remote session metadata (titles, etc.) before connecting
