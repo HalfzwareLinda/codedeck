@@ -242,10 +242,9 @@ export default function SettingsModal() {
             onChange={(e) => setLocal({ ...local, default_mode: e.target.value as AgentMode })}
             style={{ cursor: 'pointer' }}
           >
-            <option value="default">Default</option>
-            <option value="acceptEdits">Accept Edits</option>
             <option value="plan">Plan</option>
-            <option value="bypassPermissions">Bypass Permissions</option>
+            <option value="default">YOLO (default)</option>
+            <option value="acceptEdits">Accept Edits</option>
           </select>
 
           <label className="modal-label">Model</label>

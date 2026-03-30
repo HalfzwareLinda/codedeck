@@ -1,5 +1,5 @@
 export type SessionState = 'idle' | 'running' | 'waiting_permission' | 'completed' | 'error';
-export type AgentMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions';
+export type AgentMode = 'default' | 'acceptEdits' | 'plan';
 export type OutputType = 'action' | 'diff' | 'message' | 'error' | 'system' | 'tool_use' | 'tool_result' | 'user_message' | 'token_usage';
 export type GitSyncStatus = 'synced' | 'pending_push' | 'push_failed' | 'never_pushed';
 

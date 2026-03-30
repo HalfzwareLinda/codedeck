@@ -23,7 +23,7 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 - **Push notifications**: OS notifications for permission requests and plan approvals when app is backgrounded
 - **Image attachments**: Send images from your phone to Claude Code sessions
 - **GFM markdown rendering**: GitHub-flavored markdown with syntax highlighting
-- **Three permission modes**: Cycle between plan/bypass/acceptEdits from the session header
+- **Three permission modes**: Cycle between plan/default (YOLO)/acceptEdits from the session header
 - Full agent loop: file read/write/edit, bash exec, grep, directory listing
 - Persistent sessions and configuration with **crash recovery**
 - Chat-style session view with collapsible tool groups

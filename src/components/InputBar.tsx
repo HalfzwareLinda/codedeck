@@ -152,12 +152,11 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
     }
   };
 
-  const MODE_CYCLE: AgentMode[] = ['plan', 'bypassPermissions', 'acceptEdits'];
+  const MODE_CYCLE: AgentMode[] = ['plan', 'default', 'acceptEdits'];
   const MODE_LABELS: Record<AgentMode, string> = {
-    default: 'DEFAULT',
-    acceptEdits: 'EDITS',
     plan: 'PLAN',
-    bypassPermissions: 'BYPASS',
+    default: 'YOLO (default)',
+    acceptEdits: 'EDITS',
   };
 
   const [modeCooldown, setModeCooldown] = useState(false);
