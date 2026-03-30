@@ -44,6 +44,7 @@
 - [x] **Initialize session mode on creation** — Plan auto-approve works for fresh sessions (`eb89ff1`, 2026-03-09)
 - [x] **Sync mobile UI mode on plan approval** — Mobile mode state stays in sync (`76ae9d4`, 2026-03-09)
 - [x] **Remove ExitPlanMode from auto-approve set** — Prevents unintended plan exits (`1826c72`, 2026-03-23)
+- [x] **CD-014: Remove phone-side auto-approve logic** — Phone no longer auto-approves; bridge is sole authority. Removed PLAN_AUTO_APPROVE set, mode subscription, useEffect dispatch from PermissionRequestEntry (`1713db0`, 2026-03-29)
 
 ## Question Card UX & Free-Text Input (2026-03-08 — 2026-03-23)
 
