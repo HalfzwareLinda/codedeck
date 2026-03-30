@@ -229,8 +229,9 @@ export async function sendRemoteKeypress(
   machine: RemoteMachine,
   sessionId: string,
   key: string,
+  context?: 'plan-approval' | 'question',
 ): Promise<void> {
-  const msg: BridgeOutboundMessage = { type: 'keypress', sessionId, key };
+  const msg: BridgeOutboundMessage = { type: 'keypress', sessionId, key, ...(context && { context }) };
   await publishToMachine(machine, msg);
 }
 

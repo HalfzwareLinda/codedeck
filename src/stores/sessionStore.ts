@@ -72,7 +72,7 @@ interface SessionStore {
   deleteRemoteSession: (sessionId: string) => void;
   undoDeleteSession: () => void;
   respondRemotePermission: (sessionId: string, requestId: string, allow: boolean, modifier?: 'always' | 'never') => Promise<void>;
-  sendRemoteKeypress: (sessionId: string, key: string) => Promise<void>;
+  sendRemoteKeypress: (sessionId: string, key: string, context?: 'plan-approval' | 'question') => Promise<void>;
   /** Re-establish bridge subscriptions for all machines (call on foreground resume). */
   reconnectBridge: () => void;
   /** Track that a card (permission, plan approval, question) has been responded to.
@@ -1304,14 +1304,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  sendRemoteKeypress: async (sessionId, key) => {
+  sendRemoteKeypress: async (sessionId, key, context?) => {
     const machine = get().getMachineForSession(sessionId);
     if (!machine) {
       console.warn('[SessionStore] sendRemoteKeypress: no machine for session', sessionId);
       return;
     }
     try {
-      await sendRemoteKeypress(machine, sessionId, key);
+      await sendRemoteKeypress(machine, sessionId, key, context);
     } catch (e) {
       console.error('[SessionStore] Failed to send keypress:', e);
     }

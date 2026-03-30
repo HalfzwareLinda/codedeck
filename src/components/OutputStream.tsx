@@ -132,7 +132,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
   const respond = (key: string) => {
     setSelectedOption(key);
     if (cardId) markResponded(sessionId, cardId);
-    sendKeypress(sessionId, key);
+    sendKeypress(sessionId, key, 'plan-approval');
     if (key === '1' || key === '2') {
       setModeLocal(sessionId, 'acceptEdits');
     } else if (key === '3') {
@@ -283,11 +283,11 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
             onClick={() => {
               if (freeTextOptionIndex === i) {
                 // Send the keypress to select this option, then show text input
-                sendKeypress(sessionId, String(i + 1));
+                sendKeypress(sessionId, String(i + 1), 'question');
                 setShowTextInput(true);
               } else {
                 if (cardId) markResponded(sessionId, cardId);
-                sendKeypress(sessionId, String(i + 1));
+                sendKeypress(sessionId, String(i + 1), 'question');
               }
             }}
           >
@@ -385,11 +385,11 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
 
   const handleAnswer = (optionIndex: number) => {
     if (freeTextOptionIndex === optionIndex) {
-      sendKeypress(sessionId, String(optionIndex + 1));
+      sendKeypress(sessionId, String(optionIndex + 1), 'question');
       setShowTextInput(true);
     } else {
       markResponded(sessionId, `${toolUseId}:q${activeTab}`);
-      sendKeypress(sessionId, String(optionIndex + 1));
+      sendKeypress(sessionId, String(optionIndex + 1), 'question');
     }
   };
 
