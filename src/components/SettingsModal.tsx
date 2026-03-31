@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
-import { AppConfig, AgentMode, RemoteMachine } from '../types';
+import { AppConfig, AgentMode, EffortLevel, RemoteMachine } from '../types';
 import { parsePrivateKey, getPubkeyHex, parsePublicKey } from '../services/nostrService';
 import { api } from '../ipc/tauri';
 import * as nip19 from 'nostr-tools/nip19';
@@ -25,6 +25,7 @@ export default function SettingsModal() {
     github_pat: null,
     github_username: null,
     default_mode: 'plan' as AgentMode,
+    default_effort: 'auto' as EffortLevel,
     auto_push_on_complete: true,
     notifications_enabled: true,
     workspace_base_path: '',
@@ -245,6 +246,20 @@ export default function SettingsModal() {
             <option value="plan">Plan</option>
             <option value="default">YOLO (default)</option>
             <option value="acceptEdits">Accept Edits</option>
+          </select>
+
+          <label className="modal-label">Default Effort</label>
+          <select
+            className="modal-input"
+            value={local.default_effort ?? 'auto'}
+            onChange={(e) => setLocal({ ...local, default_effort: e.target.value as EffortLevel })}
+            style={{ cursor: 'pointer' }}
+          >
+            <option value="auto">Auto (model default)</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="max">Max (Opus only)</option>
           </select>
 
           <label className="modal-label">Model</label>

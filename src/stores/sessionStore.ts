@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Session, OutputEntry, AppConfig, AgentMode, TokenUsage, RemoteMachine, RemoteSessionInfo, RemoteOutputEntry } from '../types';
+import { Session, OutputEntry, AppConfig, AgentMode, EffortLevel, TokenUsage, RemoteMachine, RemoteSessionInfo, RemoteOutputEntry } from '../types';
 import { api, events, isTauri } from '../ipc/tauri';
 import {
   initBridge,
@@ -17,6 +17,7 @@ import {
   sendCreateSessionRequest,
   sendRefreshRequest,
   sendCloseSessionRequest,
+  sendRemoteEffortChange,
 } from '../services/bridgeService';
 import { invoke } from '@tauri-apps/api/core';
 import { persistGet, persistSet } from '../services/persistStore';
@@ -35,6 +36,7 @@ interface SessionStore {
   machines: RemoteMachine[];
   remoteSessions: Record<string, RemoteSessionInfo[]>; // keyed by machine pubkeyHex
   remoteSessionModes: Record<string, AgentMode>; // keyed by sessionId
+  remoteSessionEffort: Record<string, EffortLevel>; // keyed by sessionId
   historyLoading: Record<string, boolean>;
   refreshing: boolean;
   /** Pending sessions awaiting JSONL file creation. Map<pendingId, metadata>. */
@@ -58,6 +60,7 @@ interface SessionStore {
   cancelAgent: (sessionId: string) => Promise<void>;
   respondPermission: (sessionId: string, requestId: string, allow: boolean) => Promise<void>;
   setMode: (sessionId: string, mode: AgentMode) => Promise<void>;
+  setEffort: (sessionId: string, level: EffortLevel) => Promise<void>;
   setRemoteSessionModeLocal: (sessionId: string, mode: AgentMode) => void;
   updateConfig: (config: AppConfig) => Promise<void>;
   initEventListeners: () => Promise<void>;
@@ -95,6 +98,7 @@ const defaultConfig: AppConfig = {
   github_pat: null,
   github_username: null,
   default_mode: 'plan',
+  default_effort: 'auto',
   auto_push_on_complete: true,
   notifications_enabled: true,
   workspace_base_path: '',
@@ -133,6 +137,7 @@ let pendingDeleteSnapshot: {
   outputs: OutputEntry[];
   tokenUsage: TokenUsage | null;
   mode: AgentMode | null;
+  effort: EffortLevel | null;
 } | null = null;
 
 const UNDO_DELAY_MS = 4_000;
@@ -277,6 +282,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   machines: [],
   remoteSessions: {},
   remoteSessionModes: {},
+  remoteSessionEffort: {},
   historyLoading: {},
   refreshing: false,
   pendingSessions: new Map(),
@@ -606,6 +612,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (isTauri()) await api.setMode(sessionId, mode);
   },
 
+  setEffort: async (sessionId, level) => {
+    const machine = get().getMachineForSession(sessionId);
+    if (machine) {
+      // Update remote session effort optimistically
+      set((state) => ({
+        remoteSessionEffort: { ...state.remoteSessionEffort, [sessionId]: level },
+      }));
+      try {
+        await sendRemoteEffortChange(machine, sessionId, level);
+      } catch (e) {
+        console.error('[SessionStore] Failed to send remote effort change:', e);
+      }
+    }
+  },
+
   setRemoteSessionModeLocal: (sessionId, mode) => {
     set((state) => ({
       remoteSessionModes: { ...state.remoteSessionModes, [sessionId]: mode },
@@ -734,12 +755,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             const incomingIds = new Set(dedupedFiltered.map(s => s.id));
 
             const newSessionModes: Record<string, AgentMode> = {};
+            const newSessionEffort: Record<string, EffortLevel> = {};
             const merged = dedupedFiltered.map(incoming => {
               const prev = existingMap.get(incoming.id);
               if (!prev) {
                 // New session — initialize mode from bridge (default to 'plan')
                 if (!state.remoteSessionModes[incoming.id]) {
                   newSessionModes[incoming.id] = incoming.permissionMode ?? 'plan';
+                }
+                // Initialize effort from bridge (default to 'auto')
+                if (!state.remoteSessionEffort[incoming.id] && incoming.effortLevel) {
+                  newSessionEffort[incoming.id] = incoming.effortLevel;
                 }
                 return incoming;
               }
@@ -771,6 +797,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               remoteSessionModes: Object.keys(newSessionModes).length > 0
                 ? { ...state.remoteSessionModes, ...newSessionModes }
                 : state.remoteSessionModes,
+              remoteSessionEffort: Object.keys(newSessionEffort).length > 0
+                ? { ...state.remoteSessionEffort, ...newSessionEffort }
+                : state.remoteSessionEffort,
               refreshing: false,
             };
           });
@@ -862,6 +891,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               return { pendingQuestions: next };
             });
           }
+        }
+
+        // Detect autonomous plan mode entry from EnterPlanMode tool_use
+        if (entry.entryType === 'tool_use' && entry.metadata?.tool_name === 'EnterPlanMode') {
+          set((state) => ({
+            remoteSessionModes: { ...state.remoteSessionModes, [sessionId]: 'plan' },
+          }));
         }
 
         // Clear pending question when the question resolves (tool_result or new user/assistant turn)
@@ -1097,11 +1133,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             }
           }
 
-          // Transfer mode, clear old outputs (context was cleared)
+          // Transfer mode and effort, clear old outputs (context was cleared)
           const newModes = { ...state.remoteSessionModes };
           if (newModes[oldSessionId]) {
             newModes[newSession.id] = newModes[oldSessionId];
             delete newModes[oldSessionId];
+          }
+          const newEffort = { ...state.remoteSessionEffort };
+          if (newEffort[oldSessionId]) {
+            newEffort[newSession.id] = newEffort[oldSessionId];
+            delete newEffort[oldSessionId];
           }
 
           const newOutputs = { ...state.outputs };
@@ -1117,6 +1158,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           return {
             remoteSessions: newRemoteSessions,
             remoteSessionModes: newModes,
+            remoteSessionEffort: newEffort,
             outputs: newOutputs,
             tokenUsage: newTokenUsage,
             respondedCards: newRespondedCards,
@@ -1129,6 +1171,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       (sessionId: string, mode: AgentMode) => {
         set((state) => ({
           remoteSessionModes: { ...state.remoteSessionModes, [sessionId]: mode },
+        }));
+      },
+      // onEffortConfirmed — fast feedback from bridge after effort change
+      (sessionId: string, level: EffortLevel) => {
+        set((state) => ({
+          remoteSessionEffort: { ...state.remoteSessionEffort, [sessionId]: level },
         }));
       },
     );
@@ -1220,7 +1268,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   createRemoteSession: async (machine) => {
     try {
-      await sendCreateSessionRequest(machine);
+      const defaultEffort = get().config.default_effort;
+      await sendCreateSessionRequest(machine, defaultEffort !== 'auto' ? defaultEffort : undefined);
     } catch (e) {
       console.error('[SessionStore] Failed to create remote session:', e);
     }
@@ -1256,6 +1305,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       outputs: get().outputs[sessionId] || [],
       tokenUsage: get().tokenUsage[sessionId] || null,
       mode: get().remoteSessionModes[sessionId] || null,
+      effort: get().remoteSessionEffort[sessionId] || null,
     };
 
     // 2. Add to dismissed map with timestamp
@@ -1275,6 +1325,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const { [sessionId]: _o, ...restOutputs } = state.outputs;
       const { [sessionId]: _t, ...restUsage } = state.tokenUsage;
       const { [sessionId]: _m, ...restModes } = state.remoteSessionModes;
+      const { [sessionId]: _e, ...restEffort } = state.remoteSessionEffort;
       const { [sessionId]: _h, ...restLoading } = state.historyLoading;
 
       return {
@@ -1282,6 +1333,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         outputs: restOutputs,
         tokenUsage: restUsage,
         remoteSessionModes: restModes,
+        remoteSessionEffort: restEffort,
         historyLoading: restLoading,
         dismissedSessionIds: dismissed,
         activeSessionId: state.activeSessionId === sessionId ? null : state.activeSessionId,
@@ -1343,6 +1395,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         remoteSessionModes: snap.mode
           ? { ...state.remoteSessionModes, [snap.sessionId]: snap.mode }
           : state.remoteSessionModes,
+        remoteSessionEffort: snap.effort
+          ? { ...state.remoteSessionEffort, [snap.sessionId]: snap.effort }
+          : state.remoteSessionEffort,
         dismissedSessionIds: dismissed,
         undoToast: null,
       };

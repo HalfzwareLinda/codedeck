@@ -78,6 +78,28 @@
   pointer-events: none;
 }
 
+.effort-btn {
+  padding: 4px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  height: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.effort-btn.active {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-medium);
+}
+
+.effort-btn.effort-cooldown {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .send-btn {
   height: 32px;
   padding: 0 12px;

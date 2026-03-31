@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { AgentMode } from '../types';
+import { AgentMode, EffortLevel } from '../types';
 import { useSessionStore } from '../stores/sessionStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { processImageFile } from '../utils/imageUtils';
@@ -13,13 +13,14 @@ interface PendingImage {
   sizeBytes: number;
 }
 
-export default function InputBar({ sessionId, mode }: { sessionId: string; mode?: AgentMode }) {
+export default function InputBar({ sessionId, mode, effort }: { sessionId: string; mode?: AgentMode; effort?: EffortLevel }) {
   const [text, setText] = useState('');
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [sending, setSending] = useState(false);
   const [sendPop, setSendPop] = useState(false);
   const sendMessage = useSessionStore((s) => s.sendMessage);
   const setMode = useSessionStore((s) => s.setMode);
+  const setEffort = useSessionStore((s) => s.setEffort);
   const pendingRevision = useSessionStore((s) => s.pendingRevisionSession === sessionId);
   const clearPendingRevision = useSessionStore((s) => s.setPendingRevision);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -159,7 +160,17 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
     acceptEdits: 'EDITS',
   };
 
+  const EFFORT_CYCLE: EffortLevel[] = ['auto', 'low', 'medium', 'high', 'max'];
+  const EFFORT_LABELS: Record<EffortLevel, string> = {
+    auto: 'AUTO',
+    low: 'LOW',
+    medium: 'MED',
+    high: 'HIGH',
+    max: 'MAX',
+  };
+
   const [modeCooldown, setModeCooldown] = useState(false);
+  const [effortCooldown, setEffortCooldown] = useState(false);
 
   const cycleMode = () => {
     if (modeCooldown) return;
@@ -169,6 +180,15 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
     setMode(sessionId, next);
     setModeCooldown(true);
     setTimeout(() => setModeCooldown(false), 600);
+  };
+
+  const cycleEffort = () => {
+    if (effortCooldown || !effort) return;
+    const idx = EFFORT_CYCLE.indexOf(effort);
+    const next = EFFORT_CYCLE[(idx + 1) % EFFORT_CYCLE.length];
+    setEffort(sessionId, next);
+    setEffortCooldown(true);
+    setTimeout(() => setEffortCooldown(false), 600);
   };
 
   const canSend = (text.trim() || pendingImage) && !sending;
@@ -228,6 +248,11 @@ export default function InputBar({ sessionId, mode }: { sessionId: string; mode?
           <button className={`mode-btn active${modeCooldown ? ' mode-cooldown' : ''}`} onClick={cycleMode}>
             {MODE_LABELS[mode ?? 'default']}
           </button>
+          {effort !== undefined && (
+            <button className={`effort-btn active${effortCooldown ? ' effort-cooldown' : ''}`} onClick={cycleEffort}>
+              {EFFORT_LABELS[effort]}
+            </button>
+          )}
         </div>
 
         <textarea

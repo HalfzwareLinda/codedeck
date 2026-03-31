@@ -17,6 +17,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
   const activeConversationId = useDmStore((s) => s.activeConversationId);
   const remoteSessions = useSessionStore((s) => s.remoteSessions);
   const remoteSessionModes = useSessionStore((s) => s.remoteSessionModes);
+  const remoteSessionEffort = useSessionStore((s) => s.remoteSessionEffort);
   const defaultMode = useSessionStore((s) => s.config.default_mode);
 
   // Find remote session info if not a local session
@@ -31,6 +32,9 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
   // Tracked mode for remote session, defaulting to config's default_mode
   const remoteMode = remoteSession
     ? (remoteSessionModes[remoteSession.id] ?? defaultMode)
+    : undefined;
+  const remoteEffort = remoteSession
+    ? (remoteSessionEffort[remoteSession.id] ?? 'auto')
     : undefined;
 
   return (
@@ -52,13 +56,13 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
           {activeSession.state === 'waiting_permission' && activeSession.pending_permissions.length > 0 && (
             <PermissionBar session={activeSession} />
           )}
-          <InputBar sessionId={activeSession.id} mode={activeSession.mode} />
+          <InputBar sessionId={activeSession.id} mode={activeSession.mode} effort={undefined} />
         </>
       ) : panelMode === 'session' && remoteSession ? (
         <>
           <SessionHeader remoteSession={remoteSession} isWide={isWide} />
           <OutputStream sessionId={remoteSession.id} />
-          <InputBar sessionId={remoteSession.id} mode={remoteMode} />
+          <InputBar sessionId={remoteSession.id} mode={remoteMode} effort={remoteEffort} />
         </>
       ) : (
         <>

@@ -1,5 +1,6 @@
 export type SessionState = 'idle' | 'running' | 'waiting_permission' | 'completed' | 'error';
 export type AgentMode = 'default' | 'acceptEdits' | 'plan';
+export type EffortLevel = 'low' | 'medium' | 'high' | 'max' | 'auto';
 export type OutputType = 'action' | 'diff' | 'message' | 'error' | 'system' | 'tool_use' | 'tool_result' | 'user_message' | 'token_usage';
 export type GitSyncStatus = 'synced' | 'pending_push' | 'push_failed' | 'never_pushed';
 
@@ -46,6 +47,7 @@ export interface AppConfig {
   github_pat: string | null;
   github_username: string | null;
   default_mode: AgentMode;
+  default_effort: EffortLevel;
   auto_push_on_complete: boolean;
   notifications_enabled: boolean;
   workspace_base_path: string;
@@ -100,6 +102,7 @@ export interface RemoteSessionInfo {
   project: string;
   hasTerminal?: boolean;
   permissionMode?: AgentMode;
+  effortLevel?: EffortLevel;
 }
 
 export interface RemoteOutputEntry {
@@ -119,7 +122,8 @@ export type BridgeInboundMessage =
   | { type: 'input-failed'; sessionId: string; reason: 'no-terminal' | 'expired' }
   | { type: 'close-session-ack'; sessionId: string; success: boolean }
   | { type: 'session-replaced'; oldSessionId: string; newSession: RemoteSessionInfo }
-  | { type: 'mode-confirmed'; sessionId: string; mode: AgentMode };
+  | { type: 'mode-confirmed'; sessionId: string; mode: AgentMode }
+  | { type: 'effort-confirmed'; sessionId: string; level: EffortLevel };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }
@@ -127,8 +131,9 @@ export type BridgeOutboundMessage =
   | { type: 'permission-res'; sessionId: string; requestId: string; allow: boolean; modifier?: 'always' | 'never' }
   | { type: 'keypress'; sessionId: string; key: string; context?: 'plan-approval' | 'question' }
   | { type: 'mode'; sessionId: string; mode: AgentMode }
+  | { type: 'effort'; sessionId: string; level: EffortLevel }
   | { type: 'history-request'; sessionId: string; afterSeq?: number }
-  | { type: 'create-session' }
+  | { type: 'create-session'; defaultEffort?: EffortLevel }
   | { type: 'refresh-sessions' }
   | { type: 'close-session'; sessionId: string }
   | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number }

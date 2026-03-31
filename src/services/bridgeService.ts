@@ -16,6 +16,7 @@ import { encrypt, decrypt, getConversationKey } from 'nostr-tools/nip44';
 import { finalizeEvent } from 'nostr-tools/pure';
 import type {
   AgentMode,
+  EffortLevel,
   RemoteMachine,
   RemoteSessionInfo,
   RemoteOutputEntry,
@@ -42,6 +43,7 @@ type InputFailedHandler = (sessionId: string, reason: 'no-terminal' | 'expired')
 type CloseSessionAckHandler = (sessionId: string, success: boolean) => void;
 type SessionReplacedHandler = (oldSessionId: string, newSession: RemoteSessionInfo) => void;
 type ModeConfirmedHandler = (sessionId: string, mode: import('../types').AgentMode) => void;
+type EffortConfirmedHandler = (sessionId: string, level: import('../types').EffortLevel) => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -58,6 +60,7 @@ let onInputFailed: InputFailedHandler | null = null;
 let onCloseSessionAck: CloseSessionAckHandler | null = null;
 let onSessionReplaced: SessionReplacedHandler | null = null;
 let onModeConfirmed: ModeConfirmedHandler | null = null;
+let onEffortConfirmed: EffortConfirmedHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -105,6 +108,7 @@ export function setBridgeHandlers(
   closeSessionAckHandler?: CloseSessionAckHandler,
   sessionReplacedHandler?: SessionReplacedHandler,
   modeConfirmedHandler?: ModeConfirmedHandler,
+  effortConfirmedHandler?: EffortConfirmedHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
@@ -117,6 +121,7 @@ export function setBridgeHandlers(
   onCloseSessionAck = closeSessionAckHandler ?? null;
   onSessionReplaced = sessionReplacedHandler ?? null;
   onModeConfirmed = modeConfirmedHandler ?? null;
+  onEffortConfirmed = effortConfirmedHandler ?? null;
 }
 
 /**
@@ -281,13 +286,26 @@ export async function sendRemoteModeChange(
 }
 
 /**
+ * Send an effort level change to a remote machine.
+ */
+export async function sendRemoteEffortChange(
+  machine: RemoteMachine,
+  sessionId: string,
+  level: EffortLevel,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'effort', sessionId, level };
+  await publishToMachine(machine, msg);
+}
+
+/**
  * Request a new Claude Code terminal session on a remote machine.
  * The bridge will open a Claude Code terminal in the VSCode workspace.
  */
 export async function sendCreateSessionRequest(
   machine: RemoteMachine,
+  defaultEffort?: EffortLevel,
 ): Promise<void> {
-  const msg: BridgeOutboundMessage = { type: 'create-session' };
+  const msg: BridgeOutboundMessage = { type: 'create-session', defaultEffort };
   await publishToMachine(machine, msg);
 }
 
@@ -492,6 +510,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
         break;
       case 'mode-confirmed':
         onModeConfirmed?.(msg.sessionId, msg.mode);
+        break;
+      case 'effort-confirmed':
+        onEffortConfirmed?.(msg.sessionId, msg.level);
         break;
     }
   } catch (err) {

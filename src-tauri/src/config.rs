@@ -7,6 +7,8 @@ use crate::session::AgentMode;
 pub struct AppConfig {
     pub github_username: Option<String>,
     pub default_mode: AgentMode,
+    #[serde(default = "default_effort")]
+    pub default_effort: String,
     pub auto_push_on_complete: bool,
     pub notifications_enabled: bool,
     pub workspace_base_path: String,
@@ -14,11 +16,16 @@ pub struct AppConfig {
     pub model: String,
 }
 
+fn default_effort() -> String {
+    "auto".to_string()
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             github_username: None,
             default_mode: AgentMode::Plan,
+            default_effort: "auto".to_string(),
             auto_push_on_complete: true,
             notifications_enabled: true,
             workspace_base_path: String::new(),
@@ -38,6 +45,8 @@ pub struct FullConfig {
     pub github_pat: Option<String>,
     pub github_username: Option<String>,
     pub default_mode: AgentMode,
+    #[serde(default = "default_effort")]
+    pub default_effort: String,
     pub auto_push_on_complete: bool,
     pub notifications_enabled: bool,
     pub workspace_base_path: String,
@@ -57,6 +66,7 @@ impl FullConfig {
             github_pat: pat,
             github_username: config.github_username.clone(),
             default_mode: config.default_mode.clone(),
+            default_effort: config.default_effort.clone(),
             auto_push_on_complete: config.auto_push_on_complete,
             notifications_enabled: config.notifications_enabled,
             workspace_base_path: config.workspace_base_path.clone(),
@@ -70,6 +80,7 @@ impl FullConfig {
         AppConfig {
             github_username: self.github_username.clone(),
             default_mode: self.default_mode.clone(),
+            default_effort: self.default_effort.clone(),
             auto_push_on_complete: self.auto_push_on_complete,
             notifications_enabled: self.notifications_enabled,
             workspace_base_path: self.workspace_base_path.clone(),
