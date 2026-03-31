@@ -227,6 +227,20 @@ export async function sendRemoteInput(
 }
 
 /**
+ * Send a free-text answer to a pending AskUserQuestion. The bridge selects
+ * the "Type something" TUI option, waits for the mode switch, then sends text.
+ */
+export async function sendRemoteQuestionInput(
+  machine: RemoteMachine,
+  sessionId: string,
+  text: string,
+  optionCount: number,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'question-input', sessionId, text, optionCount };
+  await publishToMachine(machine, msg);
+}
+
+/**
  * Send a single raw keypress to a Claude Code session (plan approval, question selection).
  * Routed through sendKeypress on the bridge — no Escape/Enter wrapping.
  */

@@ -179,6 +179,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const sendMessage = useSessionStore((s) => s.sendMessage);
   const markResponded = useSessionStore((s) => s.markCardResponded);
+  const clearPendingQuestion = useSessionStore((s) => s.clearPendingQuestion);
   const cardId = item.entry.metadata?.tool_use_id as string | undefined;
   const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
   const [showTextInput, setShowTextInput] = useState(false);
@@ -277,6 +278,7 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
             key={i}
             className="question-option-btn"
             onClick={() => {
+              clearPendingQuestion(sessionId);
               if (freeTextOptionIndex === i) {
                 // Send the keypress to select this option, then show text input
                 sendKeypress(sessionId, String(i + 1), 'question');
@@ -294,6 +296,18 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
           </button>
         ))}
       </div>
+      {freeTextOptionIndex === -1 && (
+        <button
+          className="question-type-own-btn"
+          onClick={() => {
+            clearPendingQuestion(sessionId);
+            sendKeypress(sessionId, String(item.options!.length + 1), 'question');
+            setShowTextInput(true);
+          }}
+        >
+          Type your own answer...
+        </button>
+      )}
     </div>
   );
 }
@@ -303,6 +317,7 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
   const sendMessage = useSessionStore((s) => s.sendMessage);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const isCardResponded = useSessionStore((s) => s.isCardResponded);
+  const clearPendingQuestion = useSessionStore((s) => s.clearPendingQuestion);
 
   // Per-question response tracking uses composite card IDs: "toolUseId:q0", "toolUseId:q1", etc.
   const { toolUseId, questions } = item;
@@ -380,6 +395,7 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
     : -1;
 
   const handleAnswer = (optionIndex: number) => {
+    clearPendingQuestion(sessionId);
     if (freeTextOptionIndex === optionIndex) {
       sendKeypress(sessionId, String(optionIndex + 1), 'question');
       setShowTextInput(true);
@@ -454,16 +470,30 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
       {(!hasOptions || showTextInput) ? (
         textInput
       ) : (
-        <div className="question-options">
-          {activeQuestion.options!.map((opt, i) => (
-            <button key={i} className="question-option-btn" onClick={() => handleAnswer(i)}>
-              <span className="question-option-label">{opt.label}</span>
-              {opt.description && (
-                <span className="question-option-desc">{opt.description}</span>
-              )}
+        <>
+          <div className="question-options">
+            {activeQuestion.options!.map((opt, i) => (
+              <button key={i} className="question-option-btn" onClick={() => handleAnswer(i)}>
+                <span className="question-option-label">{opt.label}</span>
+                {opt.description && (
+                  <span className="question-option-desc">{opt.description}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          {freeTextOptionIndex === -1 && (
+            <button
+              className="question-type-own-btn"
+              onClick={() => {
+                clearPendingQuestion(sessionId);
+                sendKeypress(sessionId, String(activeQuestion.options!.length + 1), 'question');
+                setShowTextInput(true);
+              }}
+            >
+              Type your own answer...
             </button>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

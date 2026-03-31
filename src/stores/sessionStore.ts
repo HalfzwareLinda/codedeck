@@ -8,6 +8,7 @@ import {
   disconnectFromMachine,
   reconnectAllMachines,
   sendRemoteInput,
+  sendRemoteQuestionInput,
   sendRemoteImage,
   sendRemoteModeChange,
   sendRemoteKeypress,
@@ -84,6 +85,9 @@ interface SessionStore {
   /** Session waiting for plan revision text input. Set when user taps "Revise plan". */
   pendingRevisionSession: string | null;
   setPendingRevision: (sessionId: string | null) => void;
+  /** Tracks pending AskUserQuestion per session so InputBar can route through question-input. */
+  pendingQuestions: Map<string, { optionCount: number }>;
+  clearPendingQuestion: (sessionId: string) => void;
 }
 
 const defaultConfig: AppConfig = {
@@ -280,6 +284,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   undoToast: null,
   respondedCards: new Map(),
   pendingRevisionSession: null,
+  pendingQuestions: new Map(),
+
+  clearPendingQuestion: (sessionId) => set((state) => {
+    if (!state.pendingQuestions.has(sessionId)) return state;
+    const next = new Map(state.pendingQuestions);
+    next.delete(sessionId);
+    return { pendingQuestions: next };
+  }),
 
   markCardResponded: (sessionId, cardId) => set((state) => {
     const existing = state.respondedCards.get(sessionId);
@@ -461,7 +473,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           const blossomServer = useDmStore.getState().nostrConfig.blossomServer;
           await sendRemoteImage(machine, sessionId, text, image.base64, image.filename, image.mimeType, blossomServer);
         } else {
-          await sendRemoteInput(machine, sessionId, text);
+          // If a question menu is pending, route as question-input so the bridge
+          // selects "Type something" first, avoiding the Escape→cancel bug.
+          const pending = get().pendingQuestions.get(sessionId);
+          if (pending) {
+            get().clearPendingQuestion(sessionId);
+            await sendRemoteQuestionInput(machine, sessionId, text, pending.optionCount);
+          } else {
+            await sendRemoteInput(machine, sessionId, text);
+          }
         }
       } catch (e) {
         get().addOutput(sessionId, {
@@ -814,6 +834,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             type: special,
             toolName: special === 'permission_request' ? (entry.metadata?.toolName as string) : undefined,
           });
+        }
+
+        // Track pending AskUserQuestion so InputBar can route through question-input
+        if (special === 'ask_question') {
+          const options = entry.metadata?.options as Array<{ label: string }> | undefined;
+          if (options && options.length > 0) {
+            set((state) => {
+              const next = new Map(state.pendingQuestions);
+              next.set(sessionId, { optionCount: options.length });
+              return { pendingQuestions: next };
+            });
+          }
+        }
+
+        // Clear pending question when the question resolves (tool_result or new user/assistant turn)
+        if (entryType === 'tool_result' || entryType === 'user_message' || (entryType === 'message' && entry.metadata?.role === 'assistant')) {
+          if (get().pendingQuestions.has(sessionId)) {
+            get().clearPendingQuestion(sessionId);
+          }
         }
       },
       // onStatus

@@ -123,6 +123,7 @@ export type BridgeInboundMessage =
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }
+  | { type: 'question-input'; sessionId: string; text: string; optionCount: number }
   | { type: 'permission-res'; sessionId: string; requestId: string; allow: boolean; modifier?: 'always' | 'never' }
   | { type: 'keypress'; sessionId: string; key: string; context?: 'plan-approval' | 'question' }
   | { type: 'mode'; sessionId: string; mode: AgentMode }

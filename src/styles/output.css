@@ -396,6 +396,23 @@
   margin-top: 2px;
 }
 
+.question-type-own-btn {
+  display: block;
+  margin-top: 6px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.question-type-own-btn:active {
+  color: var(--accent);
+}
+
 /* --- Question group tab bar --- */
 
 .question-tabs {
