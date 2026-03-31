@@ -3,7 +3,7 @@ import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { useSwipeToDelete } from '../hooks/useSwipeToDelete';
-import { parsePublicKey } from '../services/nostrService';
+import { parsePublicKey, getDebugInfo } from '../services/nostrService';
 import { relativeTime } from '../utils/relativeTime';
 import { Session, RemoteSessionInfo } from '../types';
 import DmTile from './DmTile';
@@ -366,7 +366,22 @@ export default function Sidebar() {
       <div className="dm-section">
         <div className="dm-section-header">
           <span className="dm-section-title">
-            <span className={`dm-connection-dot ${connectionStatus}`} />
+            <span
+              className={`dm-connection-dot ${connectionStatus}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const info = getDebugInfo();
+                const lines = [
+                  `pubkey: ${info.pubkey ?? 'none'}`,
+                  `filter: ${JSON.stringify(info.filter)}`,
+                  `events received: ${info.eventsReceived}`,
+                  `decrypt failures: ${info.giftWrapFailures}`,
+                  ...Object.entries(info.relayStatus).map(([url, ok]) => `${ok ? 'OK' : 'FAIL'} ${url}`),
+                ];
+                console.log('[DM Debug]\n' + lines.join('\n'));
+                alert(lines.join('\n'));
+              }}
+            />
             DMs
           </span>
           <button className="sidebar-add-btn dm-add-btn" onClick={() => setShowNewDm(!showNewDm)}>+</button>

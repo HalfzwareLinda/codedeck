@@ -9,6 +9,11 @@ let subscription: ReturnType<SimplePool['subscribeMany']> | null = null;
 let ownPubkey: string | null = null;
 let ownSkBytes: Uint8Array | null = null;
 
+// Diagnostic counters
+let eventsReceived = 0;
+let giftWrapFailures = 0;
+let lastFilter: Record<string, unknown> | null = null;
+
 /** Rumor IDs we sent — skip these from relay delivery. Map<id, timestamp> for TTL eviction. */
 const sentRumorIds = new Map<string, number>();
 const RUMOR_TTL_MS = 600_000; // 10 minutes
@@ -103,9 +108,11 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
   ownSkBytes = sk;
   ownPubkey = getPublicKey(sk);
 
-  console.log(`[Nostr] Connecting to relays:`, relays, `pubkey: ${ownPubkey.slice(0, 8)}...`);
+  console.log(`[Nostr] Connecting to relays:`, relays, `pubkey: ${ownPubkey}`);
   onStatus?.('connecting');
   ensureRumorCleanup();
+  eventsReceived = 0;
+  giftWrapFailures = 0;
 
   // Enable auto-reconnect with exponential backoff (10s → 60s)
   pool = new SimplePool({ enableReconnect: true });
@@ -118,16 +125,21 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
   // Only fetch events after last known message to avoid replaying history
   if (sinceTimestamp && sinceTimestamp > 0) {
     filter.since = sinceTimestamp;
-    console.log(`[Nostr] Subscribing with since=${sinceTimestamp} (${new Date(sinceTimestamp * 1000).toISOString()})`);
   }
+  lastFilter = filter;
+  console.log(`[Nostr] Subscribe filter:`, JSON.stringify(filter));
 
   subscription = pool.subscribeMany(
     relays,
     filter as Parameters<SimplePool['subscribeMany']>[1],
     {
       onevent(event) {
-        if (!ownSkBytes) return;
-        console.log(`[Nostr] Received gift wrap: ${event.id.slice(0, 12)}...`);
+        eventsReceived++;
+        if (!ownSkBytes) {
+          console.warn(`[Nostr] Received gift wrap but ownSkBytes is null — dropping`);
+          return;
+        }
+        console.log(`[Nostr] Received gift wrap #${eventsReceived}: ${event.id.slice(0, 12)}... kind=${event.kind} pubkey=${event.pubkey.slice(0, 12)}`);
         const msg = processGiftWrap(event, ownSkBytes);
         if (msg) {
           // Skip self-wraps for messages we sent — the local addMessage already covers these
@@ -140,7 +152,7 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
         }
       },
       oneose() {
-        console.log('[Nostr] Subscription EOSE — connected');
+        console.log(`[Nostr] Subscription EOSE — connected (${eventsReceived} historical events)`);
         onStatus?.('connected');
       },
       onclose(reasons) {
@@ -267,7 +279,9 @@ function processGiftWrap(event: Parameters<typeof unwrapEvent>[0], recipientSk: 
       status: 'delivered',
     };
   } catch (err) {
-    console.warn('[Nostr] Failed to process gift wrap event:', err);
+    giftWrapFailures++;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn(`[Nostr] Failed to process gift wrap ${event.id?.slice(0, 12)} (failure #${giftWrapFailures}):`, errMsg);
     return null;
   }
 }
@@ -291,6 +305,23 @@ export async function fetchProfileName(
     console.warn('[Nostr] Failed to fetch profile for', pubkeyHex, err);
     return null;
   }
+}
+
+/** Get diagnostic info for debugging DM connectivity. */
+export function getDebugInfo(): {
+  pubkey: string | null;
+  filter: Record<string, unknown> | null;
+  eventsReceived: number;
+  giftWrapFailures: number;
+  relayStatus: Record<string, boolean>;
+} {
+  const relayStatus: Record<string, boolean> = {};
+  if (pool) {
+    pool.listConnectionStatus().forEach((connected, url) => {
+      relayStatus[url] = connected;
+    });
+  }
+  return { pubkey: ownPubkey, filter: lastFilter, eventsReceived, giftWrapFailures, relayStatus };
 }
 
 // --- Helpers ---

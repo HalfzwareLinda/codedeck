@@ -189,6 +189,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
     );
 
     const sinceTimestamp = getLatestMessageTimestamp(messages);
+    console.log(`[DM] Connecting — relays: ${nostrConfig.relays.join(', ')}, sinceTimestamp: ${sinceTimestamp ?? 'none'} (${sinceTimestamp ? new Date(sinceTimestamp * 1000).toISOString() : 'fetching all'})`);
     nostr.connect(nostrConfig.private_key_hex, nostrConfig.relays, sinceTimestamp);
   },
 
