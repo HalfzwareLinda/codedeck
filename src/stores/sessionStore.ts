@@ -339,16 +339,32 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     // Accumulate token usage directly in the store (don't mark unread for metrics)
     if (entry.entry_type === 'token_usage') {
-      const match = entry.content.match(/Tokens:\s*(\d+)\s*in\s*\/\s*(\d+)\s*out/);
-      if (match) {
+      // Prefer structured metadata.usage (reliable) over regex on content string (fragile)
+      const usage = entry.metadata?.usage as { input_tokens?: number; output_tokens?: number } | undefined;
+      let inputTokens: number | undefined;
+      let outputTokens: number | undefined;
+
+      if (usage && typeof usage.input_tokens === 'number' && typeof usage.output_tokens === 'number') {
+        inputTokens = usage.input_tokens;
+        outputTokens = usage.output_tokens;
+      } else {
+        // Fallback: parse from content string for backward compatibility
+        const match = entry.content.match(/Tokens:\s*(\d+)\s*in\s*\/\s*(\d+)\s*out/);
+        if (match) {
+          inputTokens = parseInt(match[1], 10);
+          outputTokens = parseInt(match[2], 10);
+        }
+      }
+
+      if (inputTokens !== undefined && outputTokens !== undefined) {
         const prev = state.tokenUsage[sessionId] || { input_tokens: 0, output_tokens: 0, total_cost_usd: 0 };
         return {
           outputs: { ...state.outputs, [sessionId]: existing },
           tokenUsage: {
             ...state.tokenUsage,
             [sessionId]: {
-              input_tokens: prev.input_tokens + parseInt(match[1], 10),
-              output_tokens: prev.output_tokens + parseInt(match[2], 10),
+              input_tokens: prev.input_tokens + inputTokens,
+              output_tokens: prev.output_tokens + outputTokens,
               total_cost_usd: prev.total_cost_usd,
             },
           },
