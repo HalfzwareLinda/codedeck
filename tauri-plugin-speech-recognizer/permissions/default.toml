@@ -7,4 +7,5 @@ permissions = [
     "allow-stop-listening",
     "allow-is-available",
     "allow-request-permission",
+    "allow-register-listener",
 ]

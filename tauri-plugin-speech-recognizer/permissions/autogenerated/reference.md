@@ -8,6 +8,7 @@ Default permissions for the speech-recognizer plugin
 - `allow-stop-listening`
 - `allow-is-available`
 - `allow-request-permission`
+- `allow-register-listener`
 
 ## Permission Table
 
@@ -40,6 +41,32 @@ Enables the is_available command without any pre-configured scope.
 <td>
 
 Denies the is_available command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`speech-recognizer:allow-register-listener`
+
+</td>
+<td>
+
+Enables the register_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`speech-recognizer:deny-register-listener`
+
+</td>
+<td>
+
+Denies the register_listener command without any pre-configured scope.
 
 </td>
 </tr>
