@@ -5,7 +5,9 @@ import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { parsePublicKey } from './services/nostrService';
 import { initNotifications, setAppHidden } from './services/notificationService';
+import { hasActiveSubscriptions } from './services/bridgeService';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
+import { invoke } from '@tauri-apps/api/core';
 import * as nip19 from 'nostr-tools/nip19';
 import type { RemoteMachine } from './types';
 import Sidebar from './components/Sidebar';
@@ -80,7 +82,7 @@ export default function App() {
     });
   }, []);
 
-  // Reconnect DM + bridge subscriptions when app returns to foreground
+  // Manage DM + bridge lifecycle on background/foreground transitions
   useEffect(() => {
     const onVisibilityChange = () => {
       const dmState = useDmStore.getState();
@@ -89,9 +91,15 @@ export default function App() {
       setAppHidden(document.hidden);
       if (document.hidden) {
         dmState.disconnect();
+        // Start foreground service to keep bridge relay alive on Android
+        if (hasActiveSubscriptions()) {
+          invoke('plugin:background-relay|start_service').catch(() => {});
+        }
       } else {
         dmState.connect();
-        // Re-establish bridge subscriptions — Android kills WebSockets after ~30s background
+        // Stop foreground service (not needed in foreground)
+        invoke('plugin:background-relay|stop_service').catch(() => {});
+        // Safety net: reconnect bridge in case service was killed by OS
         useSessionStore.getState().reconnectBridge();
       }
     };

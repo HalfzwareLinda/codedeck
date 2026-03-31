@@ -12,6 +12,7 @@
     "store:default",
     "speech-recognizer:default",
     "deep-link:default",
-    "notification:default"
+    "notification:default",
+    "background-relay:default"
   ]
 }

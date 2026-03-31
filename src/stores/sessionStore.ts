@@ -17,6 +17,7 @@ import {
   sendRefreshRequest,
   sendCloseSessionRequest,
 } from '../services/bridgeService';
+import { invoke } from '@tauri-apps/api/core';
 import { persistGet, persistSet } from '../services/persistStore';
 import { notifyIfNeeded } from '../services/notificationService';
 import { useDmStore } from './dmStore';
@@ -649,6 +650,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       };
     });
     persistSet('codedeck_machines', get().machines);
+    // Stop foreground service if no machines remain
+    if (get().machines.length === 0) {
+      invoke('plugin:background-relay|stop_service').catch(() => {});
+    }
   },
 
   initBridgeService: async (privateKeyHex) => {

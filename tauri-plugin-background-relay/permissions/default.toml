@@ -1,0 +1,9 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Default permissions for the background-relay plugin"
+permissions = [
+    "allow-start-service",
+    "allow-stop-service",
+    "allow-is-running",
+]

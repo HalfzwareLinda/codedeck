@@ -195,6 +195,11 @@ export function reconnectAllMachines(machines: RemoteMachine[]): void {
   }
 }
 
+/** Whether the bridge has any active relay subscriptions. */
+export function hasActiveSubscriptions(): boolean {
+  return subscriptions.size > 0;
+}
+
 /**
  * Disconnect from all machines.
  */
