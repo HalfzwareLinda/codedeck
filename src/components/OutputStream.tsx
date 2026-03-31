@@ -124,7 +124,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     return (
       <div className="plan-approval-bar plan-approval-answered">
         <div className="plan-approval-label">
-          {selectedOption === '4' ? 'Type your revision below' : 'Response sent...'}
+          {selectedOption === '3' ? 'Type your revision below' : 'Response sent...'}
         </div>
       </div>
     );
@@ -133,11 +133,11 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     setSelectedOption(key);
     if (cardId) markResponded(sessionId, cardId);
     sendKeypress(sessionId, key, 'plan-approval');
-    if (key === '1' || key === '2') {
+    if (key === '1') {
       setModeLocal(sessionId, 'acceptEdits');
-    } else if (key === '3') {
+    } else if (key === '2') {
       setModeLocal(sessionId, 'default');
-    } else if (key === '4') {
+    } else if (key === '3') {
       setPendingRevision(sessionId);
     }
   };
@@ -145,19 +145,15 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
     <div className="plan-approval-bar">
       <div className="plan-approval-label">Approve this plan?</div>
       <div className="plan-approval-actions plan-approval-options">
-        <button className="plan-option-btn plan-option-warn" onClick={() => respond('1')}>
-          <span className="plan-option-label">Clear context & auto-accept</span>
-          <span className="plan-option-desc">Starts fresh session, auto-accepts edits</span>
+        <button className="plan-option-btn plan-option-primary" onClick={() => respond('1')}>
+          <span className="plan-option-label">Approve — mode EDITS</span>
+          <span className="plan-option-desc">Auto-accepts file edits, prompts for Bash/Web</span>
         </button>
         <button className="plan-option-btn plan-option-primary" onClick={() => respond('2')}>
-          <span className="plan-option-label">Approve (auto-accept edits)</span>
-          <span className="plan-option-desc">Continues session, auto-accepts edits</span>
+          <span className="plan-option-label">Approve — mode YOLO (default)</span>
+          <span className="plan-option-desc">Prompts for every tool action</span>
         </button>
-        <button className="plan-option-btn plan-option-primary" onClick={() => respond('3')}>
-          <span className="plan-option-label">Approve (manual edits)</span>
-          <span className="plan-option-desc">Continues session, manually approve each edit</span>
-        </button>
-        <button className="plan-option-btn plan-option-secondary" onClick={() => respond('4')}>
+        <button className="plan-option-btn plan-option-secondary" onClick={() => respond('3')}>
           <span className="plan-option-label">Revise plan</span>
           <span className="plan-option-desc">Type feedback to change the plan</span>
         </button>

@@ -24,6 +24,23 @@
 - [ ] **CD-011: TodoWrite checklist rendering** — Render Claude's `TodoWrite` tool output as a proper checklist card in the output stream instead of raw tool_use content.
 - [ ] **CD-012: Session pinning / archiving** — Pin active sessions to the top of the sidebar, archive old ones to reduce clutter.
 
+## UX / Layout
+
+- [ ] **CD-015: Option to move session column to right side** — Add a setting to move the left session sidebar to the right-hand side of the screen.
+- [ ] **CD-016: Fix microphone button functionality** — Microphone button is not working correctly; investigate and fix speech input.
+- [ ] **CD-017: Remove local sessions functionality** — Strip out local session support; Codedeck should only handle remote/bridge sessions.
+- [ ] **CD-018: Increase DM row height in sidebar** — Direct message rows in the left column are too short; increase their height for better readability.
+- [ ] **CD-019: Clean up settings menu** — Audit SettingsModal for unused or obsolete options and remove them.
+
+## Infrastructure
+
+- [ ] **CD-020: Set up Nostr relay for Codedeck on Cloudflare** — Deploy a dedicated Nostr relay on Cloudflare (Workers/Durable Objects) for Codedeck bridge traffic.
+
+## Future Improvements
+
+- [ ] **CD-022: Centralize plan approval options in bridge** — Move hardcoded plan approval menu options from both phone UI (`OutputStream.tsx`) and bridge (`core.ts`) into a single constant in the bridge, sent as structured metadata to the phone (same pattern as `AskUserQuestion`). Reduces update burden when Claude Code CLI changes its plan menu from 2 places to 1.
+
 ## Protocol
 
 - [ ] **CD-013: Consider ephemeral event kind for real-time output** — Currently kind 4515 (regular/stored) is used for output events. A cleaner design: use an ephemeral kind (20000-29999) for the real-time stream so relays don't store it, and rely solely on the existing `history-request` pattern for catch-up. Trade-off: breaking change to both sides.
+- [ ] **CD-021: Build remote signer support** — Implement NIP-46 remote signer (Nostr Connect) support so users don't need to paste private keys into Codedeck.
