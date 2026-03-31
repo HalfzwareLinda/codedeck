@@ -4,7 +4,7 @@ import * as nostr from '../services/nostrService';
 import { npubEncode } from 'nostr-tools/nip19';
 import { persistGet, persistSet } from '../services/persistStore';
 
-const DEFAULT_RELAYS = ['wss://relay.primal.net', 'wss://nos.lol'];
+const DEFAULT_RELAYS = ['wss://relay2.descendant.io', 'wss://relay.primal.net', 'wss://nos.lol'];
 const MAX_MESSAGES_PER_CONVERSATION = 500;
 const STORAGE_KEY = 'codedeck_dm';
 

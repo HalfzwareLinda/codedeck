@@ -13,7 +13,7 @@
 
 import { finalizeEvent } from 'nostr-tools/pure';
 
-export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net';
+export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.descendant.io';
 
 export interface BlossomUploadResult {
   /** SHA-256 hex hash of the uploaded (encrypted) blob */
