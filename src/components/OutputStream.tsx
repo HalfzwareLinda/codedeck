@@ -629,6 +629,15 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     }
   }, [display.length, autoScroll, prevCount]);
 
+  // Direct auto-scroll on new entries — reliable cross-platform fallback
+  useEffect(() => {
+    if (autoScrollRef.current && display.length > 0) {
+      safeScrollToEnd();
+      const timer = setTimeout(safeScrollToEnd, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [display.length, safeScrollToEnd]);
+
   // Auto-scroll whenever the inner content grows (new entries, streaming, expand, etc.)
   useEffect(() => {
     const el = listRef.current?.element;
