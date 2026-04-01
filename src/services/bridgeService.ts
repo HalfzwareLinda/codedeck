@@ -68,6 +68,16 @@ let ownPubkeyHex: string | null = null;
 // Track latest event timestamp per machine for `since` filter on reconnect
 const lastSeenTimestamps: Map<string, number> = new Map();
 
+// Track latest session list event created_at per machine for staleness detection
+const lastSessionListTimestamps: Map<string, number> = new Map();
+
+// Periodic staleness check timers per machine
+const stalenessTimers: Map<string, ReturnType<typeof setInterval>> = new Map();
+
+// Bridge heartbeat is 60s; consider stale after ~2.5 missed heartbeats
+const STALENESS_THRESHOLD_S = 150;
+const STALENESS_CHECK_INTERVAL_MS = 60_000;
+
 // Track consecutive decryption failures per machine to detect key mismatch
 const consecutiveDecryptFailures: Map<string, number> = new Map();
 const DECRYPT_FAILURE_THRESHOLD = 5;
@@ -165,7 +175,9 @@ export function connectToMachine(machine: RemoteMachine): void {
       },
       oneose() {
         if (myGen !== generation) { return; }
-        onStatus?.(machine.hostname, 'connected');
+        // EOSE only means the relay delivered cached events — check freshness
+        // of the latest session list to determine if bridge is actually alive.
+        evaluateMachineStatus(machine);
       },
       onclose(reasons) {
         if (myGen !== generation) { return; }
@@ -176,6 +188,14 @@ export function connectToMachine(machine: RemoteMachine): void {
   );
 
   subscriptions.set(machine.pubkeyHex, sub);
+
+  // Start periodic staleness check for this machine
+  const existingTimer = stalenessTimers.get(machine.pubkeyHex);
+  if (existingTimer) { clearInterval(existingTimer); }
+  const timer = setInterval(() => {
+    evaluateMachineStatus(machine);
+  }, STALENESS_CHECK_INTERVAL_MS);
+  stalenessTimers.set(machine.pubkeyHex, timer);
 }
 
 /**
@@ -187,6 +207,8 @@ export function disconnectFromMachine(pubkeyHex: string): void {
     sub.close();
     subscriptions.delete(pubkeyHex);
   }
+  const timer = stalenessTimers.get(pubkeyHex);
+  if (timer) { clearInterval(timer); stalenessTimers.delete(pubkeyHex); }
 }
 
 /**
@@ -213,6 +235,8 @@ export function disconnectAll(): void {
     sub.close();
     subscriptions.delete(key);
   }
+  for (const timer of stalenessTimers.values()) { clearInterval(timer); }
+  stalenessTimers.clear();
   if (pool) {
     pool.destroy();
     pool = null;
@@ -482,7 +506,10 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
 
     switch (msg.type) {
       case 'sessions':
+        lastSessionListTimestamps.set(_machine.pubkeyHex, event.created_at);
         onSessionList?.(msg.machine, msg.sessions);
+        // Fresh session list = bridge is alive
+        onStatus?.(_machine.hostname, 'connected');
         break;
       case 'output':
         onOutput?.(msg.sessionId, msg.entry, msg.seq);
@@ -525,6 +552,28 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
       onStatus?.(_machine.hostname, 'disconnected');
       console.error(`[Bridge] ${count} consecutive decryption failures for ${_machine.hostname} — check Nostr keys`);
     }
+  }
+}
+
+/**
+ * Evaluate whether a machine's bridge is alive based on session list freshness.
+ * The bridge re-publishes the session list every 60s as a heartbeat.
+ */
+function evaluateMachineStatus(machine: RemoteMachine): void {
+  const lastTs = lastSessionListTimestamps.get(machine.pubkeyHex);
+  const now = Math.floor(Date.now() / 1000);
+
+  if (!lastTs) {
+    // Never received a session list → bridge not confirmed alive
+    onStatus?.(machine.hostname, 'disconnected');
+    return;
+  }
+
+  const age = now - lastTs;
+  if (age <= STALENESS_THRESHOLD_S) {
+    onStatus?.(machine.hostname, 'connected');
+  } else {
+    onStatus?.(machine.hostname, 'disconnected');
   }
 }
 
