@@ -106,7 +106,7 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
   return <div className="output-system">{entry.content}</div>;
 }
 
-function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string; answered?: string; cardId?: string }) {
+function PlanApprovalEntry({ sessionId, answered, cardId, hasPlan }: { sessionId: string; answered?: string; cardId?: string; hasPlan?: boolean }) {
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const setPendingRevision = useSessionStore((s) => s.setPendingRevision);
@@ -129,6 +129,35 @@ function PlanApprovalEntry({ sessionId, answered, cardId }: { sessionId: string;
       </div>
     );
   }
+
+  // No plan: simple "Exit plan mode?" yes/no
+  if (hasPlan === false) {
+    const respond = (key: string) => {
+      setSelectedOption(key);
+      if (cardId) markResponded(sessionId, cardId);
+      sendKeypress(sessionId, key, 'exit-plan');
+      if (key === '1') {
+        setModeLocal(sessionId, 'default');
+      }
+    };
+    return (
+      <div className="plan-approval-bar">
+        <div className="plan-approval-label">Exit plan mode?</div>
+        <div className="plan-approval-actions plan-approval-options">
+          <button className="plan-option-btn plan-option-primary" onClick={() => respond('1')}>
+            <span className="plan-option-label">Yes</span>
+            <span className="plan-option-desc">Exit plan mode and start coding</span>
+          </button>
+          <button className="plan-option-btn plan-option-secondary" onClick={() => respond('2')}>
+            <span className="plan-option-label">No</span>
+            <span className="plan-option-desc">Stay in plan mode</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // With plan: full 3-option approval
   const respond = (key: string) => {
     setSelectedOption(key);
     if (cardId) markResponded(sessionId, cardId);
@@ -562,7 +591,7 @@ function DisplayItem({
     case 'diff':
       return <DiffEntry entry={item.entry} />;
     case 'plan_approval':
-      return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} />;
+      return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} hasPlan={(item as PlanApprovalDisplay).entry.metadata?.has_plan !== false} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
     case 'question_group':

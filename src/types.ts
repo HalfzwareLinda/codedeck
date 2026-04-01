@@ -129,7 +129,7 @@ export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }
   | { type: 'question-input'; sessionId: string; text: string; optionCount: number }
   | { type: 'permission-res'; sessionId: string; requestId: string; allow: boolean; modifier?: 'always' | 'never' }
-  | { type: 'keypress'; sessionId: string; key: string; context?: 'plan-approval' | 'question' }
+  | { type: 'keypress'; sessionId: string; key: string; context?: 'plan-approval' | 'exit-plan' | 'question' }
   | { type: 'mode'; sessionId: string; mode: AgentMode }
   | { type: 'effort'; sessionId: string; level: EffortLevel }
   | { type: 'history-request'; sessionId: string; afterSeq?: number }

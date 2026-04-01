@@ -77,7 +77,7 @@ interface SessionStore {
   deleteRemoteSession: (sessionId: string) => void;
   undoDeleteSession: () => void;
   respondRemotePermission: (sessionId: string, requestId: string, allow: boolean, modifier?: 'always' | 'never') => Promise<void>;
-  sendRemoteKeypress: (sessionId: string, key: string, context?: 'plan-approval' | 'question') => Promise<void>;
+  sendRemoteKeypress: (sessionId: string, key: string, context?: 'plan-approval' | 'exit-plan' | 'question') => Promise<void>;
   /** Re-establish bridge subscriptions for all machines (call on foreground resume). */
   reconnectBridge: () => void;
   /** Track that a card (permission, plan approval, question) has been responded to.
