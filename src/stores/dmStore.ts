@@ -64,8 +64,8 @@ function getLatestMessageTimestamp(messages: Record<string, DmMessage[]>): numbe
       if (ts > latest) latest = ts;
     }
   }
-  // 30-second grace window to catch boundary events
-  return latest > 0 ? latest - 30 : undefined;
+  // NIP-59 randomizes gift-wrap created_at by up to ±2 days — use 48h grace window
+  return latest > 0 ? latest - 172800 : undefined;
 }
 
 export const useDmStore = create<DmStore>((set, get) => ({

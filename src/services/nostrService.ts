@@ -140,7 +140,7 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
           console.warn(`[Nostr] Received gift wrap but ownSkBytes is null — dropping`);
           return;
         }
-        console.log(`[Nostr] Received gift wrap #${eventsReceived}: ${event.id.slice(0, 12)}... kind=${event.kind} pubkey=${event.pubkey.slice(0, 12)}`);
+        console.log(`[Nostr] Received gift wrap #${eventsReceived}: ${event.id.slice(0, 12)}... kind=${event.kind} pubkey=${event.pubkey.slice(0, 12)} created_at=${event.created_at} filter.since=${filter.since ?? 'none'}`);
         const msg = processGiftWrap(event, ownSkBytes);
         if (msg) {
           // Skip self-wraps for messages we sent — the local addMessage already covers these
