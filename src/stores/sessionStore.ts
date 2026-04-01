@@ -44,6 +44,10 @@ interface SessionStore {
   /** Session IDs dismissed this app session — prevents reappearance from stale session-list events.
    *  Map<sessionId, dismissedAt timestamp> — entries older than 1 hour are pruned. */
   dismissedSessionIds: Map<string, number>;
+  /** Tracks when sessions arrived via session-ready, for grace-period protection.
+   *  Prevents onSessionList from dropping sessions whose JSONL hasn't appeared on the bridge yet.
+   *  Map<sessionId, readyTimestamp> — entries are pruned after 90 seconds. */
+  sessionReadyTimestamps: Map<string, number>;
   /** Undo toast state — shown briefly after deleting a remote session. */
   undoToast: { sessionId: string; label: string } | null;
 
@@ -287,6 +291,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   refreshing: false,
   pendingSessions: new Map(),
   dismissedSessionIds: new Map(),
+  sessionReadyTimestamps: new Map(),
   undoToast: null,
   respondedCards: new Map(),
   pendingRevisionSession: null,
@@ -792,6 +797,29 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               merged.push(...pendingPlaceholders);
             }
 
+            // Preserve recently-ready sessions that aren't in the incoming list yet.
+            // This covers the window between session-ready and the bridge indexing the JSONL.
+            const READY_GRACE_MS = 90_000;
+            const now = Date.now();
+            const mergedIds = new Set(merged.map(s => s.id));
+            for (const s of existing) {
+              if (s.id.startsWith('pending:')) continue;
+              if (mergedIds.has(s.id)) continue;
+              const readyAt = state.sessionReadyTimestamps.get(s.id);
+              if (readyAt && (now - readyAt) < READY_GRACE_MS) {
+                merged.push(s);
+              }
+            }
+
+            // Prune expired ready timestamps
+            let readyTsPruned: Map<string, number> | undefined;
+            for (const [id, ts] of state.sessionReadyTimestamps) {
+              if (now - ts > READY_GRACE_MS) {
+                if (!readyTsPruned) readyTsPruned = new Map(state.sessionReadyTimestamps);
+                readyTsPruned.delete(id);
+              }
+            }
+
             return {
               remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: merged },
               remoteSessionModes: Object.keys(newSessionModes).length > 0
@@ -801,6 +829,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 ? { ...state.remoteSessionEffort, ...newSessionEffort }
                 : state.remoteSessionEffort,
               refreshing: false,
+              ...(readyTsPruned ? { sessionReadyTimestamps: readyTsPruned } : {}),
             };
           });
 
@@ -1061,10 +1090,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             }
           }
 
+          // Track when this session became ready — protects it from being dropped
+          // by an incoming session-list that doesn't include it yet (JSONL lag)
+          const readyTs = new Map(state.sessionReadyTimestamps);
+          readyTs.set(session.id, Date.now());
+
           return {
             remoteSessions: newRemoteSessions,
             activeSessionId: session.id,
             pendingSessions: new Map(pending),
+            sessionReadyTimestamps: readyTs,
           };
         });
         debouncedPersistRemoteSessions(get);
@@ -1328,6 +1363,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const { [sessionId]: _e, ...restEffort } = state.remoteSessionEffort;
       const { [sessionId]: _h, ...restLoading } = state.historyLoading;
 
+      // Clean up grace-period tracking for deleted session
+      const readyTs = new Map(state.sessionReadyTimestamps);
+      readyTs.delete(sessionId);
+
       return {
         remoteSessions: newRemoteSessions,
         outputs: restOutputs,
@@ -1336,6 +1375,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         remoteSessionEffort: restEffort,
         historyLoading: restLoading,
         dismissedSessionIds: dismissed,
+        sessionReadyTimestamps: readyTs,
         activeSessionId: state.activeSessionId === sessionId ? null : state.activeSessionId,
         undoToast: { sessionId, label: sessionInfo?.title || sessionInfo?.slug || 'Session' },
       };
