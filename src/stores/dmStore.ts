@@ -88,7 +88,10 @@ export const useDmStore = create<DmStore>((set, get) => ({
       const existing = state.messages[msg.conversation_id] || [];
 
       // Primary dedup: exact message ID match
-      if (existing.some(m => m.id === msg.id)) return state;
+      if (existing.some(m => m.id === msg.id)) {
+        console.log(`[DM Store] ID-dedup: skipping ${msg.id.slice(0, 12)}... (already exists)`);
+        return state;
+      }
 
       // Fallback dedup: same sender + same content within time window.
       // Catches duplicates from other NIP-17 clients that generate different rumor IDs.
@@ -203,6 +206,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
     if (!nostrConfig.private_key_hex) return;
 
     const sk = nostrConfig.private_key_hex;
+    console.log(`[DM Store] sendDm triggered — to: ${recipientPubkey.slice(0, 12)}..., relays: [${nostrConfig.relays.join(', ')}], content: ${content.length} chars`);
     try {
       const msg = await nostr.sendDirectMessage(sk, recipientPubkey, content, nostrConfig.relays);
       get().addMessage(msg);
