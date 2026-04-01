@@ -3,6 +3,7 @@ import type { DmConversation, DmMessage, NostrConfig } from '../types';
 import * as nostr from '../services/nostrService';
 import { npubEncode } from 'nostr-tools/nip19';
 import { persistGet, persistSet } from '../services/persistStore';
+import { dmLog, dmWarn } from '../services/debugLog';
 
 const DEFAULT_RELAYS = ['wss://relay2.descendant.io', 'wss://relay.primal.net', 'wss://nos.lol'];
 const MAX_MESSAGES_PER_CONVERSATION = 500;
@@ -89,7 +90,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
 
       // Primary dedup: exact message ID match
       if (existing.some(m => m.id === msg.id)) {
-        console.log(`[DM Store] ID-dedup: skipping ${msg.id.slice(0, 12)}... (already exists)`);
+        dmLog('DM Store', `ID-dedup: skipping ${msg.id.slice(0, 12)}... (already exists)`);
         return state;
       }
 
@@ -102,7 +103,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
         Math.abs(Math.floor(new Date(m.timestamp).getTime() / 1000) - msgTs) < CONTENT_DEDUP_WINDOW_S,
       );
       if (isDuplicate) {
-        console.log(`[DM] Content-dedup: skipping duplicate "${msg.content.slice(0, 30)}..."`);
+        dmLog('DM Store', `Content-dedup: skipping duplicate "${msg.content.slice(0, 30)}..."`);
         return state;
       }
 
@@ -192,7 +193,7 @@ export const useDmStore = create<DmStore>((set, get) => ({
     );
 
     const sinceTimestamp = getLatestMessageTimestamp(messages);
-    console.log(`[DM] Connecting — relays: ${nostrConfig.relays.join(', ')}, sinceTimestamp: ${sinceTimestamp ?? 'none'} (${sinceTimestamp ? new Date(sinceTimestamp * 1000).toISOString() : 'fetching all'})`);
+    dmLog('DM Store', `Connecting — relays: ${nostrConfig.relays.join(', ')}, sinceTimestamp: ${sinceTimestamp ?? 'none'} (${sinceTimestamp ? new Date(sinceTimestamp * 1000).toISOString() : 'fetching all'})`);
     nostr.connect(nostrConfig.private_key_hex, nostrConfig.relays, sinceTimestamp);
   },
 
@@ -206,12 +207,12 @@ export const useDmStore = create<DmStore>((set, get) => ({
     if (!nostrConfig.private_key_hex) return;
 
     const sk = nostrConfig.private_key_hex;
-    console.log(`[DM Store] sendDm triggered — to: ${recipientPubkey.slice(0, 12)}..., relays: [${nostrConfig.relays.join(', ')}], content: ${content.length} chars`);
+    dmLog('DM Store', `sendDm triggered — to: ${recipientPubkey.slice(0, 12)}..., relays: [${nostrConfig.relays.join(', ')}], content: ${content.length} chars`);
     try {
       const msg = await nostr.sendDirectMessage(sk, recipientPubkey, content, nostrConfig.relays);
       get().addMessage(msg);
     } catch (e) {
-      console.error('Failed to send DM:', e);
+      dmWarn('DM Store', `Failed to send DM: ${e instanceof Error ? e.message : String(e)}`);
       // Show failed message in UI so user sees the failure
       const ownPubkey = nostr.getPubkeyHex(parseHexToBytes(sk));
       const failedMsg: DmMessage = {

@@ -3,6 +3,7 @@ import { SimplePool } from 'nostr-tools/pool';
 import * as nip19 from 'nostr-tools/nip19';
 import { createRumor, createSeal, createWrap, unwrapEvent } from 'nostr-tools/nip59';
 import type { DmMessage } from '../types';
+import { dmLog, dmWarn } from './debugLog';
 
 let pool: SimplePool | null = null;
 let subscription: ReturnType<SimplePool['subscribeMany']> | null = null;
@@ -108,7 +109,7 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
   ownSkBytes = sk;
   ownPubkey = getPublicKey(sk);
 
-  console.log(`[Nostr] Connecting to relays:`, relays, `pubkey: ${ownPubkey}`);
+  dmLog('Nostr', `Connecting to relays: [${relays.join(', ')}] pubkey: ${ownPubkey}`);
   onStatus?.('connecting');
   ensureRumorCleanup();
   eventsReceived = 0;
@@ -128,7 +129,7 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
   }
   lastFilter = filter;
   const sinceStr = filter.since ? `${filter.since} (${new Date((filter.since as number) * 1000).toISOString()})` : 'none (fetching all)';
-  console.log(`[Nostr] Subscribe filter:`, JSON.stringify(filter), `— since: ${sinceStr}`);
+  dmLog('Nostr', `Subscribe filter: ${JSON.stringify(filter)} — since: ${sinceStr}`);
 
   subscription = pool.subscribeMany(
     relays,
@@ -137,27 +138,27 @@ export function connect(privateKeyHex: string, relays: string[], sinceTimestamp?
       onevent(event) {
         eventsReceived++;
         if (!ownSkBytes) {
-          console.warn(`[Nostr] Received gift wrap but ownSkBytes is null — dropping`);
+          dmWarn('Nostr', 'Received gift wrap but ownSkBytes is null — dropping');
           return;
         }
-        console.log(`[Nostr] Received gift wrap #${eventsReceived}: ${event.id.slice(0, 12)}... kind=${event.kind} pubkey=${event.pubkey.slice(0, 12)} created_at=${event.created_at} filter.since=${filter.since ?? 'none'}`);
+        dmLog('Nostr', `Received gift wrap #${eventsReceived}: ${event.id.slice(0, 12)}... kind=${event.kind} pubkey=${event.pubkey.slice(0, 12)} created_at=${event.created_at} filter.since=${filter.since ?? 'none'}`);
         const msg = processGiftWrap(event, ownSkBytes);
         if (msg) {
           // Skip self-wraps for messages we sent — the local addMessage already covers these
           if (sentRumorIds.has(msg.id)) {
-            console.log(`[Nostr] Skipping self-wrap for sent message ${msg.id.slice(0, 12)}...`);
+            dmLog('Nostr', `Skipping self-wrap for sent message ${msg.id.slice(0, 12)}...`);
             return;
           }
-          console.log(`[Nostr] Processed DM from ${msg.sender_pubkey.slice(0, 8)}... (${msg.content.length} chars)`);
+          dmLog('Nostr', `Processed DM from ${msg.sender_pubkey.slice(0, 8)}... (${msg.content.length} chars)`);
           onMessage?.(msg);
         }
       },
       oneose() {
-        console.log(`[Nostr] Subscription EOSE — connected (${eventsReceived} historical events)`);
+        dmLog('Nostr', `Subscription EOSE — connected (${eventsReceived} historical events)`);
         onStatus?.('connected');
       },
       onclose(reasons) {
-        console.warn('[Nostr] Subscription closed — reasons:', JSON.stringify(reasons));
+        dmWarn('Nostr', `Subscription closed — reasons: ${JSON.stringify(reasons)}`);
         // Pool will auto-reconnect if enableReconnect is true;
         // update status so the UI shows a reconnecting indicator
         onStatus?.('connecting');
@@ -204,7 +205,7 @@ export async function sendDirectMessage(
   const senderSk = hexToBytes(senderSkHex);
   const senderPubkey = getPublicKey(senderSk);
 
-  console.log(`[DM Send] Start — to: ${recipientPubkey.slice(0, 12)}..., from: ${senderPubkey.slice(0, 12)}..., relays: [${relays.join(', ')}], content: ${content.length} chars`);
+  dmLog('DM Send', `Start — to: ${recipientPubkey.slice(0, 12)}..., from: ${senderPubkey.slice(0, 12)}..., relays: [${relays.join(', ')}], content: ${content.length} chars`);
 
   const rumorTemplate = {
     kind: 14,
@@ -214,7 +215,7 @@ export async function sendDirectMessage(
 
   // Create rumor ONCE so the rumor.id is consistent for dedup
   const rumor = createRumor(rumorTemplate, senderSk);
-  console.log(`[DM Send] Rumor created — id: ${rumor.id.slice(0, 12)}..., kind: ${rumor.kind}, tags: ${rumor.tags.length}`);
+  dmLog('DM Send', `Rumor created — id: ${rumor.id.slice(0, 12)}..., kind: ${rumor.kind}, tags: ${rumor.tags.length}`);
 
   // Track this rumor ID so we skip the self-wrap when it arrives from relay
   sentRumorIds.set(rumor.id, Date.now());
@@ -222,12 +223,12 @@ export async function sendDirectMessage(
   // Seal + wrap for recipient
   const sealForRecipient = createSeal(rumor, senderSk, recipientPubkey);
   const wrapForRecipient = createWrap(sealForRecipient, recipientPubkey);
-  console.log(`[DM Send] Wrap for recipient — wrapId: ${wrapForRecipient.id.slice(0, 12)}..., to: ${recipientPubkey.slice(0, 12)}..., wrapPubkey: ${wrapForRecipient.pubkey.slice(0, 12)}...`);
+  dmLog('DM Send', `Wrap for recipient — wrapId: ${wrapForRecipient.id.slice(0, 12)}..., to: ${recipientPubkey.slice(0, 12)}..., wrapPubkey: ${wrapForRecipient.pubkey.slice(0, 12)}...`);
 
   // Seal + wrap for self (so sender sees their own message on other devices)
   const sealForSelf = createSeal(rumor, senderSk, senderPubkey);
   const wrapForSelf = createWrap(sealForSelf, senderPubkey);
-  console.log(`[DM Send] Wrap for self — wrapId: ${wrapForSelf.id.slice(0, 12)}..., to: ${senderPubkey.slice(0, 12)}...`);
+  dmLog('DM Send', `Wrap for self — wrapId: ${wrapForSelf.id.slice(0, 12)}..., to: ${senderPubkey.slice(0, 12)}...`);
 
   // pool.publish() returns Promise<string>[] (one per relay) — spread to await each
   const recipientPromises = pool.publish(relays, wrapForRecipient);
@@ -241,9 +242,9 @@ export async function sendDirectMessage(
     const relay = relays[i % n];
     const target = i < n ? 'recipient' : 'self';
     if (r.status === 'fulfilled') {
-      console.log(`[DM Send] ✓ ${relay} (${target} wrap) — OK`);
+      dmLog('DM Send', `✓ ${relay} (${target} wrap) — OK`);
     } else {
-      console.warn(`[DM Send] ✗ ${relay} (${target} wrap) — FAILED:`, r.reason);
+      dmWarn('DM Send', `✗ ${relay} (${target} wrap) — FAILED: ${r.reason}`);
     }
   }
 
@@ -252,7 +253,7 @@ export async function sendDirectMessage(
 
   const convId = conversationId(senderPubkey, recipientPubkey);
   const status = succeeded > 0 ? 'sent' : 'failed';
-  console.log(`[DM Send] Done — rumor: ${rumor.id.slice(0, 12)}..., status: ${status}, ${succeeded} OK / ${failed} failed`);
+  dmLog('DM Send', `Done — rumor: ${rumor.id.slice(0, 12)}..., status: ${status}, ${succeeded} OK / ${failed} failed`);
 
   return {
     id: rumor.id,
@@ -268,10 +269,10 @@ export async function sendDirectMessage(
 function processGiftWrap(event: Parameters<typeof unwrapEvent>[0], recipientSk: Uint8Array): DmMessage | null {
   try {
     const rumor = unwrapEvent(event, recipientSk);
-    console.log(`[DM Recv] Unwrapped gift wrap ${event.id.slice(0, 12)}... — rumor kind: ${rumor.kind}, sender: ${rumor.pubkey.slice(0, 12)}..., content: ${rumor.content.length} chars, created_at: ${rumor.created_at} (${new Date((rumor.created_at || 0) * 1000).toISOString()})`);
+    dmLog('DM Recv', `Unwrapped gift wrap ${event.id.slice(0, 12)}... — rumor kind: ${rumor.kind}, sender: ${rumor.pubkey.slice(0, 12)}..., content: ${rumor.content.length} chars, created_at: ${rumor.created_at} (${new Date((rumor.created_at || 0) * 1000).toISOString()})`);
 
     if (rumor.kind !== 14) {
-      console.warn(`[DM Recv] Unexpected rumor kind ${rumor.kind} (expected 14) — dropping gift wrap ${event.id.slice(0, 12)}...`);
+      dmWarn('DM Recv', `Unexpected rumor kind ${rumor.kind} (expected 14) — dropping gift wrap ${event.id.slice(0, 12)}...`);
       return null;
     }
 
@@ -298,7 +299,7 @@ function processGiftWrap(event: Parameters<typeof unwrapEvent>[0], recipientSk: 
     giftWrapFailures++;
     const errMsg = err instanceof Error ? err.message : String(err);
     const pTags = (event.tags || []).filter((t: string[]) => t[0] === 'p').map((t: string[]) => t[1].slice(0, 12));
-    console.warn(`[DM Recv] Failed to unwrap gift wrap ${event.id?.slice(0, 12)}... (failure #${giftWrapFailures}) — wrapPubkey: ${event.pubkey?.slice(0, 12)}..., #p tags: [${pTags.join(', ')}], error:`, errMsg);
+    dmWarn('DM Recv', `Failed to unwrap gift wrap ${event.id?.slice(0, 12)}... (failure #${giftWrapFailures}) — wrapPubkey: ${event.pubkey?.slice(0, 12)}..., #p tags: [${pTags.join(', ')}], error: ${errMsg}`);
     return null;
   }
 }

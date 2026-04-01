@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { useSwipeToDelete } from '../hooks/useSwipeToDelete';
 import { parsePublicKey, getDebugInfo } from '../services/nostrService';
+import { subscribe as debugSubscribe, getLogEntries, clearLog } from '../services/debugLog';
 import { relativeTime } from '../utils/relativeTime';
 import { Session, RemoteSessionInfo } from '../types';
 import DmTile from './DmTile';
@@ -167,6 +168,52 @@ function NewDmInput({ onClose }: { onClose: () => void }) {
   );
 }
 
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
+}
+
+function DmDebugPanel() {
+  const logEntries = useSyncExternalStore(debugSubscribe, getLogEntries);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logEntries]);
+
+  const info = getDebugInfo();
+
+  return (
+    <div className="dm-debug-info">
+      <div className="dm-debug-static">
+        <div>pubkey: {info.pubkey ?? 'none'}</div>
+        <div>filter: {JSON.stringify(info.filter)}</div>
+        <div>events received: {info.eventsReceived}</div>
+        <div>decrypt failures: {info.giftWrapFailures}</div>
+        {Object.entries(info.relayStatus).map(([url, ok]) => (
+          <div key={url} className={ok ? 'dm-debug-relay-ok' : 'dm-debug-relay-fail'}>
+            {ok ? 'OK' : 'FAIL'} {url}
+          </div>
+        ))}
+      </div>
+      <hr className="dm-debug-divider" />
+      <div className="dm-debug-log">
+        {logEntries.length === 0 && <div className="dm-debug-empty">No log entries yet</div>}
+        {logEntries.map((entry, i) => (
+          <div key={i} className={`dm-debug-entry ${entry.level === 'warn' ? 'warn' : ''}`}>
+            <span className="dm-debug-time">{formatTime(entry.timestamp)}</span>
+            {' '}[{entry.tag}] {entry.message}
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      <div className="dm-debug-footer">
+        <button className="dm-debug-clear" onClick={() => clearLog()}>Clear</button>
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const sessions = useSessionStore((s) => s.sessions);
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
@@ -180,6 +227,7 @@ export default function Sidebar() {
   const refreshing = useSessionStore((s) => s.refreshing);
   const requestRefreshSessions = useSessionStore((s) => s.requestRefreshSessions);
   const [showNewDm, setShowNewDm] = useState(false);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // --- Pull-to-refresh (ref-based to avoid per-frame re-renders) ---
   const listRef = useRef<HTMLDivElement>(null);
@@ -370,16 +418,7 @@ export default function Sidebar() {
               className={`dm-connection-dot ${connectionStatus}`}
               onClick={(e) => {
                 e.stopPropagation();
-                const info = getDebugInfo();
-                const lines = [
-                  `pubkey: ${info.pubkey ?? 'none'}`,
-                  `filter: ${JSON.stringify(info.filter)}`,
-                  `events received: ${info.eventsReceived}`,
-                  `decrypt failures: ${info.giftWrapFailures}`,
-                  ...Object.entries(info.relayStatus).map(([url, ok]) => `${ok ? 'OK' : 'FAIL'} ${url}`),
-                ];
-                console.log('[DM Debug]\n' + lines.join('\n'));
-                alert(lines.join('\n'));
+                setShowDebugInfo(!showDebugInfo);
               }}
             />
             DMs
@@ -388,6 +427,8 @@ export default function Sidebar() {
         </div>
 
         {showNewDm && <NewDmInput onClose={() => setShowNewDm(false)} />}
+
+        {showDebugInfo && <DmDebugPanel />}
 
         <div className="dm-section-list">
           {sortedConversations.map((conv) => (
