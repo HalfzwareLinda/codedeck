@@ -63,3 +63,12 @@
 - [x] **Notification dot accuracy** — Only shows when session actually needs user input (`b244a8b`, 2026-03-07)
 - [x] **TypeScript build fix** — Removed unused `DISMISSED_TTL_MS` constant (`5533ceb`, 2026-03-06)
 - [x] **Speech-recognizer permission cleanup** — Removed nonexistent `allow-register-listener`, fixed `scrollToRow` stale index crash (`c341cd5`, `350513c`, 2026-03-09)
+
+## Auto-Scroll Fix (2026-03-31)
+
+- [x] **CD-023: Auto-scroll chat on new incoming messages** — Added `useEffect` watching `display.length` to trigger `safeScrollToEnd()` directly, bypassing unreliable ResizeObserver on mobile WebView (`ea3af0d`, 2026-03-31)
+
+## Completed (2026-03-31)
+
+- [x] **CD-020: Set up Nostr relay for Codedeck on Cloudflare** — Deployed dedicated Nostr relay on Cloudflare for Codedeck bridge traffic (2026-03-31)
+- [x] **CD-025: Add build mode effort functionality** — Added build mode effort setting/control in the Codedeck UI (2026-03-31)
