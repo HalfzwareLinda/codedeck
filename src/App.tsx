@@ -44,6 +44,22 @@ function handleDeepLink(url: string): void {
     };
 
     useSessionStore.getState().addMachine(machine);
+
+    // Apply pairing config to DM store (blossom server + relay merge)
+    const blossomParam = parsed.searchParams.get('blossom');
+    const dmState = useDmStore.getState();
+    const currentConfig = dmState.nostrConfig;
+    const currentRelays = currentConfig.relays;
+    const missingRelays = relays.filter(r => !currentRelays.includes(r));
+    const needsUpdate = missingRelays.length > 0 || (blossomParam && currentConfig.blossomServer !== blossomParam);
+
+    if (needsUpdate) {
+      dmState.updateNostrConfig({
+        ...currentConfig,
+        relays: missingRelays.length > 0 ? [...currentRelays, ...missingRelays] : currentRelays,
+        ...(blossomParam ? { blossomServer: blossomParam } : {}),
+      });
+    }
   } catch {
     // Malformed URL — ignore silently
   }
