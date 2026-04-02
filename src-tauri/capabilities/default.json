@@ -13,6 +13,10 @@
     "speech-recognizer:default",
     "deep-link:default",
     "notification:default",
-    "background-relay:default"
+    "background-relay:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://blossom.descendant.io/*" }]
+    }
   ]
 }

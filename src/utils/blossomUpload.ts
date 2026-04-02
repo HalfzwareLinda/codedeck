@@ -12,6 +12,7 @@
  */
 
 import { finalizeEvent } from 'nostr-tools/pure';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.descendant.io';
 
@@ -73,9 +74,10 @@ export async function uploadToBlossom(
   const authJson = JSON.stringify(authEvent);
   const authBase64 = btoa(authJson);
 
-  // 6. HTTP PUT to Blossom server
+  // 6. HTTP PUT to Blossom server (Tauri plugin fetch bypasses Android WebView restrictions)
+  const httpFetch = (window as any).__TAURI__ ? tauriFetch : fetch;
   const uploadUrl = `${serverUrl.replace(/\/$/, '')}/upload`;
-  const response = await fetch(uploadUrl, {
+  const response = await httpFetch(uploadUrl, {
     method: 'PUT',
     headers: {
       'Authorization': `Nostr ${authBase64}`,
