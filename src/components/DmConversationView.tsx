@@ -3,6 +3,7 @@ import { useDmStore } from '../stores/dmStore';
 import { useUIStore } from '../stores/uiStore';
 import { getPubkeyHex } from '../services/nostrService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { DmMessage } from '../types';
 import '../styles/dm.css';
 import '../styles/header.css';
@@ -33,6 +34,7 @@ export default function DmConversationView({ conversationId, isWide }: { convers
   const [text, setText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isTouchDevice = useMediaQuery('(pointer: coarse)');
 
   const handleDictationResult = useCallback((transcript: string) => {
     setText(prev => {
@@ -81,7 +83,7 @@ export default function DmConversationView({ conversationId, isWide }: { convers
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isTouchDevice) {
       e.preventDefault();
       handleSend();
     }

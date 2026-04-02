@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentMode, EffortLevel } from '../types';
 import { useSessionStore } from '../stores/sessionStore';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { processImageFile } from '../utils/imageUtils';
 import '../styles/input.css';
 
@@ -25,6 +26,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
   const clearPendingRevision = useSessionStore((s) => s.setPendingRevision);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isTouchDevice = useMediaQuery('(pointer: coarse)');
 
   // Auto-focus textarea when plan revision is requested
   useEffect(() => {
@@ -138,7 +140,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isTouchDevice) {
       e.preventDefault();
       handleSend();
     }
