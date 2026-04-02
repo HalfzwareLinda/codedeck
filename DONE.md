@@ -72,3 +72,7 @@
 
 - [x] **CD-020: Set up Nostr relay for Codedeck on Cloudflare** — Deployed dedicated Nostr relay on Cloudflare for Codedeck bridge traffic (2026-03-31)
 - [x] **CD-025: Add build mode effort functionality** — Added build mode effort setting/control in the Codedeck UI (2026-03-31)
+
+## Pairing Improvements (2026-04-02)
+
+- [x] **CD-027: Apply blossom + relay config from pairing deep link** — Deep link handler now merges pairing relays into DM relay list and applies Blossom server URL in a single atomic config update (`30682c3`, 2026-04-02)
