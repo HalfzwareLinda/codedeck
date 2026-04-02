@@ -8,4 +8,5 @@ permissions = [
     "allow-is-available",
     "allow-request-permission",
     "allow-register-listener",
+    "allow-remove-listener",
 ]

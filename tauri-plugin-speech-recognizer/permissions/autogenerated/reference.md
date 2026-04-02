@@ -9,6 +9,7 @@ Default permissions for the speech-recognizer plugin
 - `allow-is-available`
 - `allow-request-permission`
 - `allow-register-listener`
+- `allow-remove-listener`
 
 ## Permission Table
 
@@ -67,6 +68,32 @@ Enables the register_listener command without any pre-configured scope.
 <td>
 
 Denies the register_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`speech-recognizer:allow-remove-listener`
+
+</td>
+<td>
+
+Enables the remove_listener command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`speech-recognizer:deny-remove-listener`
+
+</td>
+<td>
+
+Denies the remove_listener command without any pre-configured scope.
 
 </td>
 </tr>

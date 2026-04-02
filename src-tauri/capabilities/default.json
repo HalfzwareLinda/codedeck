@@ -16,7 +16,7 @@
     "background-relay:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://blossom.descendant.io/*" }]
+      "allow": [{ "url": "https://*" }]
     }
   ]
 }
