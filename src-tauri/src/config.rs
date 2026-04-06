@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub model: String,
     #[serde(default = "default_show_session_metadata")]
     pub show_session_metadata: bool,
+    #[serde(default = "default_show_mode_badge")]
+    pub show_mode_badge: bool,
 }
 
 fn default_effort() -> String {
@@ -23,6 +25,10 @@ fn default_effort() -> String {
 }
 
 fn default_show_session_metadata() -> bool {
+    true
+}
+
+fn default_show_mode_badge() -> bool {
     true
 }
 
@@ -38,6 +44,7 @@ impl Default for AppConfig {
             max_sessions: 20,
             model: "claude-sonnet-4-20250514".to_string(),
             show_session_metadata: true,
+            show_mode_badge: true,
         }
     }
 }
@@ -61,6 +68,8 @@ pub struct FullConfig {
     pub model: String,
     #[serde(default = "default_show_session_metadata")]
     pub show_session_metadata: bool,
+    #[serde(default = "default_show_mode_badge")]
+    pub show_mode_badge: bool,
 }
 
 impl FullConfig {
@@ -82,6 +91,7 @@ impl FullConfig {
             max_sessions: config.max_sessions,
             model: config.model.clone(),
             show_session_metadata: config.show_session_metadata,
+            show_mode_badge: config.show_mode_badge,
         }
     }
 
@@ -97,6 +107,7 @@ impl FullConfig {
             max_sessions: self.max_sessions,
             model: self.model.clone(),
             show_session_metadata: self.show_session_metadata,
+            show_mode_badge: self.show_mode_badge,
         }
     }
 }

@@ -54,6 +54,7 @@ export interface AppConfig {
   max_sessions: number;
   model: string;
   show_session_metadata: boolean;
+  show_mode_badge: boolean;
 }
 
 // --- Nostr / DM Types ---

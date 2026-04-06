@@ -58,6 +58,7 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
   const sessionId = session?.id ?? remoteSession?.id;
   const tokenUsage = useSessionStore((s) => sessionId ? s.tokenUsage[sessionId] : undefined);
   const cancelAgent = useSessionStore((s) => s.cancelAgent);
+  const showModeBadge = useSessionStore((s) => s.config.show_mode_badge);
   const isTouchDevice = useMediaQuery('(pointer: coarse)');
   const attention = useAttentionDirection(sessionId);
 
@@ -112,7 +113,7 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
           <div className="header-info">
             <div className="header-title">
               {remoteSession.title || remoteSession.slug}
-              {remoteSession.permissionMode === 'default' && (
+              {showModeBadge && remoteSession.permissionMode === 'default' && (
                 <span className="header-bypass-badge">YOLO</span>
               )}
             </div>

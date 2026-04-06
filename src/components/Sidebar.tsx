@@ -72,6 +72,7 @@ function RemoteSessionCard({ session, isSelected, machineConnected }: { session:
   const deleteRemoteSession = useSessionStore((s) => s.deleteRemoteSession);
   const hasOutput = useSessionStore((s) => (s.outputs[session.id]?.length ?? 0) > 0);
   const isUnread = useSessionStore((s) => s.unreadSessions.has(session.id));
+  const showModeBadge = useSessionStore((s) => s.config.show_mode_badge);
   const { ref, touchHandlers } = useSwipeToDelete(() => deleteRemoteSession(session.id));
 
   const isPending = session.id.startsWith('pending:');
@@ -116,7 +117,7 @@ function RemoteSessionCard({ session, isSelected, machineConnected }: { session:
           <div className="session-card-path">
             <span className="session-card-path-text">{session.project}</span>
             {(noTerminal || bridgeOffline) && <span className="session-card-offline">offline</span>}
-            {session.permissionMode === 'default' && <span className="session-card-bypass">YOLO</span>}
+            {showModeBadge && session.permissionMode === 'default' && <span className="session-card-bypass">YOLO</span>}
             <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
           </div>
         </div>

@@ -110,6 +110,7 @@ const defaultConfig: AppConfig = {
   max_sessions: 20,
   model: 'claude-opus-4-6',
   show_session_metadata: true,
+  show_mode_badge: true,
 };
 
 // --- History chunk tracking (module-level, not in store state) ---

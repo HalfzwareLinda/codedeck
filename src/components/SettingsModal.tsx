@@ -33,6 +33,7 @@ export default function SettingsModal() {
     max_sessions: 20,
     model: 'claude-opus-4-6',
     show_session_metadata: true,
+    show_mode_badge: true,
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [showPat, setShowPat] = useState(false);
@@ -301,6 +302,16 @@ export default function SettingsModal() {
             <button
               className={`toggle-switch ${local.show_session_metadata ? 'on' : 'off'}`}
               onClick={() => setLocal({ ...local, show_session_metadata: !local.show_session_metadata })}
+            >
+              <div className="toggle-knob" />
+            </button>
+          </div>
+
+          <div className="modal-toggle-row">
+            <span style={{ fontSize: 14 }}>Show mode badge</span>
+            <button
+              className={`toggle-switch ${local.show_mode_badge ? 'on' : 'off'}`}
+              onClick={() => setLocal({ ...local, show_mode_badge: !local.show_mode_badge })}
             >
               <div className="toggle-knob" />
             </button>
