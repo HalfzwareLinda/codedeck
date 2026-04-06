@@ -78,6 +78,12 @@ export interface PlanConfirmationDisplay extends DisplayEntryBase {
   entry: OutputEntry;
 }
 
+export interface CollapsibleMessageDisplay extends DisplayEntryBase {
+  kind: 'collapsible_message';
+  entry: OutputEntry;
+  summary: string;
+}
+
 export type DisplayEntry =
   | UserMessageDisplay
   | AssistantMessageDisplay
@@ -89,7 +95,8 @@ export type DisplayEntry =
   | QuestionDisplay
   | QuestionGroupDisplay
   | PermissionRequestDisplay
-  | PlanConfirmationDisplay;
+  | PlanConfirmationDisplay
+  | CollapsibleMessageDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
 
@@ -315,6 +322,53 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   return display;
 }
 
+const COLLAPSIBLE_MIN_LENGTH = 200;
+const COLLAPSIBLE_MIN_LINES = 3;
+const SUMMARY_MAX_LENGTH = 80;
+
+function buildCollapsibleSummary(content: string): string {
+  const firstLine = content.split('\n')[0].trim();
+  if (firstLine.length <= SUMMARY_MAX_LENGTH) return firstLine;
+  return firstLine.slice(0, SUMMARY_MAX_LENGTH - 1) + '\u2026';
+}
+
+function isLongEnough(content: string): boolean {
+  if (content.length >= COLLAPSIBLE_MIN_LENGTH) return true;
+  return content.split('\n').filter(l => l.trim()).length >= COLLAPSIBLE_MIN_LINES;
+}
+
+/** Reclassify long assistant messages followed by tool groups as collapsible. */
+function reclassifyCollapsibleMessages(display: DisplayEntry[]): DisplayEntry[] {
+  let lastNonSystemIndex = -1;
+  for (let i = display.length - 1; i >= 0; i--) {
+    if (display[i].kind !== 'system') {
+      lastNonSystemIndex = i;
+      break;
+    }
+  }
+
+  return display.map((item, i) => {
+    if (item.kind !== 'assistant_message') return item;
+    if (i === lastNonSystemIndex) return item;
+    if (!isLongEnough(item.entry.content)) return item;
+
+    let followedByToolGroup = false;
+    for (let j = i + 1; j < display.length; j++) {
+      if (display[j].kind === 'system') continue;
+      if (display[j].kind === 'tool_group') followedByToolGroup = true;
+      break;
+    }
+    if (!followedByToolGroup) return item;
+
+    return {
+      kind: 'collapsible_message' as const,
+      entry: item.entry,
+      summary: buildCollapsibleSummary(item.entry.content),
+      sourceStart: item.sourceStart,
+    };
+  });
+}
+
 /**
  * Hook that transforms flat OutputEntry[] into grouped DisplayEntry[],
  * and manages collapse state for tool groups.
@@ -326,7 +380,7 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
 export function useDisplayEntries(outputs: OutputEntry[]) {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
 
-  const display = useMemo(() => buildDisplayEntries(outputs), [outputs]);
+  const display = useMemo(() => reclassifyCollapsibleMessages(buildDisplayEntries(outputs)), [outputs]);
 
   const toggleGroup = useCallback((sourceStart: number) => {
     setExpanded((prev) => {

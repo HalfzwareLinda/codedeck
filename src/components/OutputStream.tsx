@@ -12,6 +12,7 @@ import {
   ToolGroupDisplay,
   PlanApprovalDisplay,
   PlanConfirmationDisplay,
+  CollapsibleMessageDisplay,
   QuestionDisplay,
   QuestionGroupDisplay,
   PermissionRequestDisplay,
@@ -208,6 +209,34 @@ function PlanConfirmationEntry({
           &#x25B8;
         </span>
         <span className="tool-group-summary">Plan approved</span>
+      </button>
+      {expanded && (
+        <div className="tool-group-body">
+          <div className="assistant-message">
+            <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{item.entry.content}</Markdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CollapsibleMessageEntry({
+  item,
+  expanded,
+  onToggle,
+}: {
+  item: CollapsibleMessageDisplay;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="tool-group">
+      <button className="tool-group-header" onClick={onToggle} aria-expanded={expanded}>
+        <span className={`tool-group-chevron${expanded ? ' tool-group-chevron-open' : ''}`}>
+          &#x25B8;
+        </span>
+        <span className="tool-group-summary">{item.summary}</span>
       </button>
       {expanded && (
         <div className="tool-group-body">
@@ -624,6 +653,8 @@ function DisplayItem({
       return <QuestionGroupEntry item={item} sessionId={sessionId} />;
     case 'permission_request':
       return <PermissionRequestEntry item={item} sessionId={sessionId} />;
+    case 'collapsible_message':
+      return <CollapsibleMessageEntry item={item as CollapsibleMessageDisplay} expanded={expanded} onToggle={onToggle} />;
     default:
       return null;
   }
@@ -655,7 +686,7 @@ function OutputRow({
   sessionId: string;
 }) {
   const item = display[index];
-  const expanded = (item.kind === 'tool_group' || item.kind === 'plan_confirmation') ? isExpanded(item.sourceStart) : false;
+  const expanded = (item.kind === 'tool_group' || item.kind === 'plan_confirmation' || item.kind === 'collapsible_message') ? isExpanded(item.sourceStart) : false;
   const onToggle = useCallback(() => toggleGroup(item.sourceStart), [toggleGroup, item.sourceStart]);
 
   return (
