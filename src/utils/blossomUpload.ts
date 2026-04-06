@@ -75,21 +75,52 @@ export async function uploadToBlossom(
   const authJson = JSON.stringify(authEvent);
   const authBase64 = btoa(authJson);
 
-  // 6. HTTP PUT to Blossom server (Tauri plugin fetch bypasses Android WebView restrictions)
+  // 6. HTTP PUT to Blossom server with retry (Tauri plugin fetch bypasses Android WebView restrictions)
   const httpFetch = isTauri() ? tauriFetch : fetch;
   const uploadUrl = `${serverUrl.replace(/\/$/, '')}/upload`;
-  const response = await httpFetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Nostr ${authBase64}`,
-      'Content-Type': 'application/octet-stream',
-    },
-    body: encryptedBytes,
-  });
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Blossom upload failed: ${response.status} ${response.statusText}${body ? ` — ${body}` : ''}`);
+  const MAX_RETRIES = 3;
+  const RETRYABLE_STATUSES = [502, 520, 522, 523, 524];
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.min(1000 * 2 ** (attempt - 1), 8000);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    try {
+      const response = await httpFetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Nostr ${authBase64}`,
+          'Content-Type': 'application/octet-stream',
+        },
+        body: encryptedBytes,
+      });
+
+      if (response.ok) {
+        break; // success — fall through to return
+      }
+
+      const body = await response.text().catch(() => '');
+      lastError = new Error(`Blossom upload failed: ${response.status} ${response.statusText}${body ? ` — ${body}` : ''}`);
+
+      // Only retry on transient Cloudflare errors
+      if (!RETRYABLE_STATUSES.includes(response.status)) {
+        throw lastError;
+      }
+    } catch (err) {
+      // Network errors (fetch rejected) are retryable
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (err instanceof Error && err.message.startsWith('Blossom upload failed:')) {
+        throw err; // non-retryable HTTP error, re-throw immediately
+      }
+    }
+
+    if (attempt === MAX_RETRIES) {
+      throw lastError ?? new Error('Blossom upload failed after retries');
+    }
   }
 
   const blobUrl = `${serverUrl.replace(/\/$/, '')}/${hashHex}`;
