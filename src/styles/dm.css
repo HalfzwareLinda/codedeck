@@ -2,7 +2,7 @@
 
 .dm-section {
   flex-shrink: 0;
-  height: 160px; /* heading (~32px) + 2 tiles (64px each) */
+  height: 352px; /* heading (~32px) + 5 tiles (64px each) */
   border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
