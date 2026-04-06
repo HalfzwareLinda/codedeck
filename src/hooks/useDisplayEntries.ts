@@ -73,6 +73,11 @@ export interface PermissionRequestDisplay extends DisplayEntryBase {
   requestId: string;
 }
 
+export interface PlanConfirmationDisplay extends DisplayEntryBase {
+  kind: 'plan_confirmation';
+  entry: OutputEntry;
+}
+
 export type DisplayEntry =
   | UserMessageDisplay
   | AssistantMessageDisplay
@@ -83,7 +88,8 @@ export type DisplayEntry =
   | PlanApprovalDisplay
   | QuestionDisplay
   | QuestionGroupDisplay
-  | PermissionRequestDisplay;
+  | PermissionRequestDisplay
+  | PlanConfirmationDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
 
@@ -138,6 +144,7 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   let currentToolGroup: OutputEntry[] = [];
   let toolGroupStart = 0;
   const answeredMap = collectAnsweredToolUseIds(outputs);
+  let lastWasPlanApproval = false;
 
   // Question group buffering (groups consecutive ask_question entries with same tool_use_id)
   let pendingQuestions: QuestionGroupQuestion[] = [];
@@ -243,6 +250,7 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
 
     if (special === 'plan_approval') {
       display.push({ kind: 'plan_approval', entry, sourceStart: i, answered: answerContent });
+      lastWasPlanApproval = true;
       continue;
     }
     if (special === 'permission_request') {
@@ -262,7 +270,11 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
         display.push({ kind: 'user_message', entry, sourceStart: i });
         break;
       case 'message':
-        display.push({ kind: 'assistant_message', entry, sourceStart: i });
+        if (lastWasPlanApproval) {
+          display.push({ kind: 'plan_confirmation', entry, sourceStart: i });
+        } else {
+          display.push({ kind: 'assistant_message', entry, sourceStart: i });
+        }
         break;
       case 'error':
         display.push({ kind: 'error', entry, sourceStart: i });
@@ -276,6 +288,7 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
       default:
         display.push({ kind: 'assistant_message', entry, sourceStart: i });
     }
+    lastWasPlanApproval = false;
   }
 
   // Flush any trailing groups
