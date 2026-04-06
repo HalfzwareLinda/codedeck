@@ -1,41 +1,62 @@
 # CodeDeck
 
-Multi-session agentic coding interface for Android, built with Tauri v2 (React + Rust).
+Multi-session agentic coding interface for Android and desktop, built with Tauri v2 (React 19 + Rust).
 
-Designed for the Google Pixel 9 Pro Fold inner display (landscape), but works on desktop too.
+Control Claude Code sessions on your laptop from your phone via Nostr relays. Designed for the Google Pixel 9 Pro Fold inner display (landscape), but works on any Android device or desktop.
 
 ## Download
 
 **[Download the latest CodeDeck for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/latest)** — ~20 MB, arm64
 
-Requirements: Android 7.0+, ARM64 device (Pixel 9 Pro Fold, etc.).
+Requirements: Android 7.0+, ARM64 device.
 
 See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases)
 
+## How It Works
+
+Codedeck pairs with the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension. The bridge uses the **Claude Agent SDK** to spawn Claude Code as a subprocess with structured JSON communication — no terminal emulation. All communication between phone and bridge is **NIP-44 encrypted** over configurable Nostr relays.
+
+```
+Phone (Codedeck)  ←── Nostr NIP-44 ──→  VSCode (Bridge Extension)
+                                          │
+                                          └── Claude Agent SDK → Claude Code subprocess
+```
+
+1. Install the Codedeck Bridge extension in VSCode
+2. Run **Codedeck: Pair Phone** from the command palette — a QR code appears
+3. Scan the QR code with the Codedeck app
+4. Your Claude Code sessions appear on the phone in real-time
+
 ## Features
 
-- Multiple concurrent Claude Code agent sessions
-- Sidebar navigation with grouped sessions and **input-needed indicators** (dot only shows for plan approvals, questions, and permission requests)
-- PLAN mode (manual approval) and AUTO mode (auto-execute)
-- **Plan approval cards**: Approve or reject Claude's plans directly from your phone
-- **Question cards**: Answer Claude's multi-choice questions inline
-- **Permission request cards**: Allow/Deny/Always for tool calls with tool-specific labels and live status tracking
-- **Push notifications**: OS notifications for permission requests and plan approvals when app is backgrounded
-- **Image attachments**: Send images from your phone to Claude Code sessions
-- **GFM markdown rendering**: GitHub-flavored markdown with syntax highlighting
-- **Three permission modes**: Cycle between plan/default (YOLO)/acceptEdits from the session header
-- Full agent loop: file read/write/edit, bash exec, grep, directory listing
-- Persistent sessions and configuration with **crash recovery**
-- Chat-style session view with collapsible tool groups
-- **Pull-to-refresh** for session list
+**Session management**
+- Multiple concurrent Claude Code sessions across multiple machines
+- Create, close, and interrupt remote sessions from the phone
+- Two-phase session creation with pending/ready lifecycle
+- Sidebar with grouped sessions, unread indicators, and input-needed dots
+- Swipe-to-delete with undo, pull-to-refresh
+- Crash recovery with automatic history catch-up on reconnect
+
+**Interactive cards**
+- **Plan approval**: Approve (auto-accept edits), approve (manual edits), or revise Claude's plans
+- **Permission requests**: Allow/Deny/Always for tool calls, with per-domain allowlists for web tools
+- **Question cards**: Multi-choice and free-text answers to Claude's questions
+
+**Modes and effort**
+- Three permission modes: Plan (manual approval) / Default (YOLO) / Accept Edits — cycle from session header
+- Effort level control: Auto / Low / Medium / High / Max
+
+**Input and output**
+- GFM markdown rendering with syntax highlighting
+- Virtualized output stream with collapsible tool groups
+- Image attachments via encrypted Blossom upload (or base64 relay fallback)
+- Speech-to-text voice dictation
+- Push notifications for permission requests, plan approvals, and questions
+
+**Other**
+- NIP-17 encrypted direct messaging
 - Black & white OLED-friendly design
-- **Remote bridge**: Control Claude Code sessions on your laptop from your phone via Nostr relays
-- **Deep link pairing**: Scan a QR code from the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension to pair instantly (`codedeck://pair?npub=...&relays=...&machine=...`)
-- **Create remote sessions**: Start new Claude Code sessions from the phone with two-phase lifecycle
-- **Swipe-to-delete**: Swipe left on session cards to delete with undo support
-- **Close remote sessions**: Delete remote sessions and close their terminals on the bridge
-- **Nostr DMs**: NIP-17 encrypted direct messaging between Nostr identities
-- **Speech-to-text**: Voice dictation for hands-free input
+- Deep link pairing (`codedeck://pair?npub=...&relays=...&machine=...`)
 
 ## Development
 
@@ -45,26 +66,16 @@ See all releases: [Releases](https://github.com/HalfzwareLinda/codedeck/releases
 - Node.js (18+)
 - Tauri CLI: `cargo install tauri-cli --version "^2"`
 
-### Desktop Dev Mode
+### Commands
 
 ```bash
-./dev.sh desktop
-```
-
-This starts the Tauri desktop app with hot-reloading.
-
-### Frontend Only (Browser Mock Mode)
-
-```bash
-./dev.sh frontend
-```
-
-Opens the UI in a browser without Tauri backend. Sessions work in mock mode.
-
-### Build Check
-
-```bash
-./dev.sh check
+./dev.sh desktop        # Desktop dev mode with hot-reloading (http://localhost:1420)
+./dev.sh frontend       # Frontend only in browser (mock mode, no Tauri)
+./dev.sh android-build  # Build Android APK (aarch64)
+./dev.sh android-dev    # Run on connected Android device
+./dev.sh build          # Desktop release build
+./dev.sh check          # TypeScript + Vite + Rust checks
+npm test                # vitest
 ```
 
 ### Android APK (requires Android SDK + NDK)
@@ -74,37 +85,38 @@ cargo tauri android init
 cargo tauri android build --apk --target aarch64
 ```
 
-## Remote Bridge
-
-Codedeck can control Claude Code sessions running on a remote machine via the [Codedeck Bridge](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) VSCode extension. Communication uses NIP-44 encrypted Nostr events.
-
-1. Install the Codedeck Bridge extension in VSCode
-2. Run the **Codedeck: Pair Phone** command — a QR code appears
-3. Scan the QR code with the Codedeck app (or enter the npub manually in Settings)
-4. Your remote Claude Code sessions appear in the sidebar
-
 ## Architecture
 
 ```
 codedeck/
-├── src/                    # React frontend
-│   ├── components/         # UI components
+├── src/                    # React 19 frontend
+│   ├── components/         # OutputStream, Sidebar, InputBar, SessionHeader, etc.
 │   ├── services/           # bridgeService (Nostr relay), nostrService (DMs), persistStore
-│   ├── stores/             # Zustand state management (sessionStore, dmStore, uiStore)
-│   ├── hooks/              # Custom React hooks
+│   ├── stores/             # Zustand stores (sessionStore, dmStore, uiStore)
+│   ├── hooks/              # useDisplayEntries, useSwipeToDelete, useSpeechRecognition
 │   └── styles/             # Global CSS
 ├── src-tauri/              # Rust backend
 │   └── src/
 │       ├── lib.rs          # Tauri commands + entry point
 │       ├── session.rs      # Session manager + persistence
-│       ├── agent.rs        # Anthropic API agent loop
 │       └── config.rs       # App configuration
-└── dev.sh                  # Development script
+└── dev.sh                  # Development script (env setup, build commands)
 ```
+
+### Bridge Protocol
+
+The phone and bridge communicate over Nostr using two event kinds:
+
+| Kind | Type | Purpose |
+|------|------|---------|
+| 30515 | NIP-33 replaceable | Session list (heartbeat every 60s) |
+| 4515 | Regular | Output stream, history, control messages |
+
+All event content is NIP-44 encrypted. Output events carry per-session sequence counters for ordering and deduplication.
 
 ## Related
 
-- [Codedeck Bridge VSCode Extension](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) — Bridges Claude Code sessions to this app over Nostr
+- [Codedeck Bridge VSCode Extension](https://github.com/HalfzwareLinda/codedeck-bridge-vscode) — Spawns Claude Code via the Agent SDK and relays sessions to this app over Nostr
 
 ## License
 
