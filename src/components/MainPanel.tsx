@@ -1,6 +1,10 @@
+import { useCallback } from 'react';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { useUIStore } from '../stores/uiStore';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { useSwipeToNavigate } from '../hooks/useSwipeToNavigate';
+import { useOrderedSessionIds } from '../hooks/useOrderedSessionIds';
 import { RemoteSessionInfo } from '../types';
 import SessionHeader from './SessionHeader';
 import OutputStream from './OutputStream';
@@ -19,6 +23,39 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
   const remoteSessionModes = useSessionStore((s) => s.remoteSessionModes);
   const remoteSessionEffort = useSessionStore((s) => s.remoteSessionEffort);
   const defaultMode = useSessionStore((s) => s.config.default_mode);
+  const setActiveSession = useSessionStore((s) => s.setActiveSession);
+  const requestSessionHistory = useSessionStore((s) => s.requestSessionHistory);
+  const setPanelMode = useUIStore((s) => s.setPanelMode);
+  const isTouchDevice = useMediaQuery('(pointer: coarse)');
+
+  const orderedIds = useOrderedSessionIds();
+
+  const navigateSession = useCallback((direction: 'next' | 'prev') => {
+    if (orderedIds.length <= 1 || !activeSessionId) return;
+    const currentIndex = orderedIds.indexOf(activeSessionId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'next'
+      ? (currentIndex + 1) % orderedIds.length
+      : (currentIndex - 1 + orderedIds.length) % orderedIds.length;
+
+    const newSessionId = orderedIds[newIndex];
+    setActiveSession(newSessionId);
+    setPanelMode('session');
+
+    // Only request history for remote sessions without output
+    const state = useSessionStore.getState();
+    const isLocal = state.sessions.some(s => s.id === newSessionId);
+    if (!isLocal && (state.outputs[newSessionId]?.length ?? 0) === 0) {
+      requestSessionHistory(newSessionId);
+    }
+  }, [orderedIds, activeSessionId, setActiveSession, setPanelMode, requestSessionHistory]);
+
+  const { containerRef, touchHandlers } = useSwipeToNavigate({
+    onSwipeLeft: () => navigateSession('next'),
+    onSwipeRight: () => navigateSession('prev'),
+    enabled: isTouchDevice && panelMode === 'session',
+  });
 
   // Find remote session info if not a local session
   let remoteSession: RemoteSessionInfo | undefined;
@@ -38,14 +75,18 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
     : undefined;
 
   return (
-    <div style={{
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      minWidth: 0,
-      background: 'var(--bg-black)',
-    }}>
+    <div
+      ref={containerRef}
+      {...touchHandlers}
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minWidth: 0,
+        background: 'var(--bg-black)',
+      }}
+    >
       <ErrorBoundary>
       {panelMode === 'dm' && activeConversationId ? (
         <DmConversationView conversationId={activeConversationId} isWide={isWide} />

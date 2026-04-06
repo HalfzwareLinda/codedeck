@@ -91,3 +91,33 @@
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* Directional attention indicators for swipe navigation */
+.session-header {
+  position: relative;
+}
+
+.session-nav-hint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--status-waiting);
+  pointer-events: none;
+  z-index: 1;
+  animation: nav-hint-pulse 2s ease-in-out infinite;
+}
+
+.session-nav-hint.left {
+  left: 4px;
+}
+
+.session-nav-hint.right {
+  right: 4px;
+}
+
+@keyframes nav-hint-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
