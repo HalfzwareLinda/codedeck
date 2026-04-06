@@ -339,24 +339,25 @@ function isLongEnough(content: string): boolean {
 
 /** Reclassify long assistant messages followed by tool groups as collapsible. */
 function reclassifyCollapsibleMessages(display: DisplayEntry[]): DisplayEntry[] {
-  let lastNonSystemIndex = -1;
+  // The last assistant_message (before the final user_message or end) is the
+  // "final answer" — never collapse it.
+  let lastAnswerIndex = -1;
   for (let i = display.length - 1; i >= 0; i--) {
-    if (display[i].kind !== 'system') {
-      lastNonSystemIndex = i;
-      break;
-    }
+    const k = display[i].kind;
+    if (k === 'assistant_message') { lastAnswerIndex = i; break; }
+    if (k === 'user_message') break;
   }
 
   return display.map((item, i) => {
     if (item.kind !== 'assistant_message') return item;
-    if (i === lastNonSystemIndex) return item;
+    if (i === lastAnswerIndex) return item;
     if (!isLongEnough(item.entry.content)) return item;
 
     let followedByToolGroup = false;
     for (let j = i + 1; j < display.length; j++) {
-      if (display[j].kind === 'system') continue;
-      if (display[j].kind === 'tool_group') followedByToolGroup = true;
-      break;
+      const k = display[j].kind;
+      if (k === 'tool_group') { followedByToolGroup = true; break; }
+      if (k === 'user_message') break;
     }
     if (!followedByToolGroup) return item;
 
