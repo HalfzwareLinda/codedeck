@@ -501,7 +501,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           await sendRemoteImage(machine, sessionId, text, image.base64, image.filename, image.mimeType, blossomServer);
         } else {
           // If a question menu is pending, route as question-input so the bridge
-          // selects "Type something" first, avoiding the Escape→cancel bug.
+          // can set parent_tool_use_id and route the answer to the correct AskUserQuestion.
           const pending = get().pendingQuestions.get(sessionId);
           if (pending) {
             get().clearPendingQuestion(sessionId);

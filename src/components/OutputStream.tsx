@@ -180,7 +180,7 @@ function PlanApprovalEntry({ sessionId, answered, cardId, hasPlan }: { sessionId
         </button>
         <button className="plan-option-btn plan-option-primary" onClick={() => respond('2')}>
           <span className="plan-option-label">Approve — mode YOLO (default)</span>
-          <span className="plan-option-desc">Prompts for every tool action</span>
+          <span className="plan-option-desc">Auto-approves all tool actions</span>
         </button>
         <button className="plan-option-btn plan-option-secondary" onClick={() => respond('3')}>
           <span className="plan-option-label">Revise plan</span>
@@ -307,12 +307,12 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
             key={i}
             className="question-option-btn"
             onClick={() => {
-              clearPendingQuestion(sessionId);
               if (freeTextOptionIndex === i) {
-                // Send the keypress to select this option, then show text input
-                sendKeypress(sessionId, String(i + 1), 'question');
+                // Just show text input — the typed text goes through question-input path
+                // with parent_tool_use_id set by the bridge's sendQuestionInput()
                 setShowTextInput(true);
               } else {
+                clearPendingQuestion(sessionId);
                 if (cardId) markResponded(sessionId, cardId);
                 sendKeypress(sessionId, String(i + 1), 'question');
               }
@@ -329,8 +329,6 @@ function QuestionEntry({ item, sessionId }: { item: QuestionDisplay; sessionId: 
         <button
           className="question-type-own-btn"
           onClick={() => {
-            clearPendingQuestion(sessionId);
-            sendKeypress(sessionId, String(item.options!.length + 1), 'question');
             setShowTextInput(true);
           }}
         >
@@ -424,11 +422,10 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
     : -1;
 
   const handleAnswer = (optionIndex: number) => {
-    clearPendingQuestion(sessionId);
     if (freeTextOptionIndex === optionIndex) {
-      sendKeypress(sessionId, String(optionIndex + 1), 'question');
       setShowTextInput(true);
     } else {
+      clearPendingQuestion(sessionId);
       markResponded(sessionId, `${toolUseId}:q${activeTab}`);
       sendKeypress(sessionId, String(optionIndex + 1), 'question');
     }
@@ -514,8 +511,6 @@ function QuestionGroupEntry({ item, sessionId }: { item: QuestionGroupDisplay; s
             <button
               className="question-type-own-btn"
               onClick={() => {
-                clearPendingQuestion(sessionId);
-                sendKeypress(sessionId, String(activeQuestion.options!.length + 1), 'question');
                 setShowTextInput(true);
               }}
             >
