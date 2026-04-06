@@ -1100,6 +1100,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             activeSessionId: session.id,
             pendingSessions: new Map(pending),
             sessionReadyTimestamps: readyTs,
+            // Seed effort from session-ready payload so UI shows correct level immediately
+            ...(session.effortLevel && !state.remoteSessionEffort[session.id]
+              ? { remoteSessionEffort: { ...state.remoteSessionEffort, [session.id]: session.effortLevel } }
+              : {}),
           };
         });
         debouncedPersistRemoteSessions(get);
