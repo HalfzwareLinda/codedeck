@@ -837,6 +837,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               }
             }
 
+            // Prune expired dismissed session IDs (1 hour)
+            const DISMISSED_MAX_AGE_MS = 60 * 60 * 1000;
+            let dismissedPruned: Map<string, number> | undefined;
+            for (const [id, ts] of state.dismissedSessionIds) {
+              if (now - ts > DISMISSED_MAX_AGE_MS) {
+                if (!dismissedPruned) dismissedPruned = new Map(state.dismissedSessionIds);
+                dismissedPruned.delete(id);
+              }
+            }
+
             return {
               remoteSessions: { ...state.remoteSessions, [machine.pubkeyHex]: merged },
               remoteSessionModes: Object.keys(newSessionModes).length > 0
@@ -847,6 +857,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 : state.remoteSessionEffort,
               refreshing: false,
               ...(readyTsPruned ? { sessionReadyTimestamps: readyTsPruned } : {}),
+              ...(dismissedPruned ? { dismissedSessionIds: dismissedPruned } : {}),
             };
           });
 

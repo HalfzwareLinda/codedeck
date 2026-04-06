@@ -46,6 +46,12 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
     return false;
   });
 
+  // Check if the bridge machine owning this session is disconnected.
+  const bridgeOffline = useSessionStore((s) => {
+    const machine = s.getMachineForSession(sessionId);
+    return machine ? !machine.connected : false;
+  });
+
   // Revoke blob URL on cleanup or when image changes
   useEffect(() => {
     return () => {
@@ -193,11 +199,16 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
     setTimeout(() => setEffortCooldown(false), 600);
   };
 
-  const canSend = (text.trim() || pendingImage) && !sending;
+  const canSend = (text.trim() || pendingImage) && !sending && !bridgeOffline;
 
   return (
     <div className="input-bar-wrapper">
-      {noTerminal && (
+      {bridgeOffline && (
+        <div className="input-no-terminal-notice">
+          Bridge offline — waiting for reconnection
+        </div>
+      )}
+      {!bridgeOffline && noTerminal && (
         <div className="input-no-terminal-notice">
           Terminal offline — will auto-relaunch on send
         </div>
@@ -263,9 +274,9 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
           value={isListening ? displayValue : text}
           onChange={(e) => { if (!isListening) setText(e.target.value); }}
           onKeyDown={handleKeyDown}
-          placeholder={isListening ? 'Listening...' : pendingRevision ? 'Type your plan revision...' : 'Ask anything...'}
+          placeholder={bridgeOffline ? 'Bridge offline...' : isListening ? 'Listening...' : pendingRevision ? 'Type your plan revision...' : 'Ask anything...'}
           rows={1}
-          readOnly={isListening || sending}
+          readOnly={isListening || sending || bridgeOffline}
         />
 
         <div className="right-controls">

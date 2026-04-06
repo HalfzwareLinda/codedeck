@@ -64,7 +64,7 @@ function SessionCard({ session, isSelected }: { session: Session; isSelected: bo
   );
 }
 
-function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo; isSelected: boolean }) {
+function RemoteSessionCard({ session, isSelected, machineConnected }: { session: RemoteSessionInfo; isSelected: boolean; machineConnected: boolean }) {
   const setActiveSession = useSessionStore((s) => s.setActiveSession);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setPanelMode = useUIStore((s) => s.setPanelMode);
@@ -102,19 +102,20 @@ function RemoteSessionCard({ session, isSelected }: { session: RemoteSessionInfo
   }
 
   const noTerminal = session.hasTerminal === false;
+  const bridgeOffline = !machineConnected;
   const classes = ['session-card swipe-card', isSelected ? 'selected' : ''].filter(Boolean).join(' ');
 
   return (
     <div className="swipe-track">
       <div className="swipe-delete-backdrop"><span className="swipe-delete-text">Delete</span></div>
       <div ref={ref} className={classes} {...touchHandlers}
-        onClick={handleClick} style={noTerminal ? { opacity: 0.6 } : undefined}
+        onClick={handleClick} style={(noTerminal || bridgeOffline) ? { opacity: 0.5 } : undefined}
       >
         <div className="session-card-info">
           <div className="session-card-name">{session.title || session.slug}</div>
           <div className="session-card-path">
             <span className="session-card-path-text">{session.project}</span>
-            {noTerminal && <span className="session-card-offline">offline</span>}
+            {(noTerminal || bridgeOffline) && <span className="session-card-offline">offline</span>}
             {session.permissionMode === 'default' && <span className="session-card-bypass">YOLO</span>}
             <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
           </div>
@@ -369,6 +370,7 @@ export default function Sidebar() {
                   key={session.id}
                   session={session}
                   isSelected={panelMode === 'session' && session.id === activeSessionId}
+                  machineConnected={machine.connected}
                 />
               ))}
               {machineSessions.length === 0 && (
