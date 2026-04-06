@@ -109,6 +109,7 @@ const defaultConfig: AppConfig = {
   workspace_base_path: '',
   max_sessions: 20,
   model: 'claude-opus-4-6',
+  show_session_metadata: true,
 };
 
 // --- History chunk tracking (module-level, not in store state) ---

@@ -53,6 +53,7 @@ export interface AppConfig {
   workspace_base_path: string;
   max_sessions: number;
   model: string;
+  show_session_metadata: boolean;
 }
 
 // --- Nostr / DM Types ---

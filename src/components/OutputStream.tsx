@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, CSSProperties } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo, CSSProperties } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -640,6 +640,15 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
   const outputs = useSessionStore((s) => s.outputs[sessionId] ?? EMPTY_OUTPUTS);
   const isLoading = useSessionStore((s) => !!s.historyLoading[sessionId]);
   const { display, toggleGroup, isExpanded } = useDisplayEntries(outputs);
+  const showMeta = useSessionStore((s) => s.config.show_session_metadata);
+  const filteredDisplay = useMemo(() => {
+    if (showMeta !== false) return display;
+    return display.filter((item) => {
+      if (item.kind !== 'system') return true;
+      const t = item.entry.content;
+      return !t.startsWith('Claude Code') && !t.startsWith('Session complete');
+    });
+  }, [display, showMeta]);
 
   const listRef = useListRef(null);
   const dynamicHeight = useDynamicRowHeight({ defaultRowHeight: DEFAULT_ROW_HEIGHT });
@@ -651,7 +660,7 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
 
   // Keep refs in sync so the ResizeObserver callback reads fresh values
   autoScrollRef.current = autoScroll;
-  displayLenRef.current = display.length;
+  displayLenRef.current = filteredDisplay.length;
 
   // Guarded scroll-to-end: always reads displayLenRef at call time to avoid stale indices
   const safeScrollToEnd = useCallback(() => {
@@ -675,22 +684,22 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
 
   // Show "New output" pill when new entries arrive while user is scrolled away
   useEffect(() => {
-    if (display.length > prevCount) {
+    if (filteredDisplay.length > prevCount) {
       if (!autoScroll) {
         setShowPill(true);
       }
-      setPrevCount(display.length);
+      setPrevCount(filteredDisplay.length);
     }
-  }, [display.length, autoScroll, prevCount]);
+  }, [filteredDisplay.length, autoScroll, prevCount]);
 
   // Direct auto-scroll on new entries — reliable cross-platform fallback
   useEffect(() => {
-    if (autoScrollRef.current && display.length > 0) {
+    if (autoScrollRef.current && filteredDisplay.length > 0) {
       safeScrollToEnd();
       const timer = setTimeout(safeScrollToEnd, 80);
       return () => clearTimeout(timer);
     }
-  }, [display.length, safeScrollToEnd]);
+  }, [filteredDisplay.length, safeScrollToEnd]);
 
   // Auto-scroll whenever the inner content grows (new entries, streaming, expand, etc.)
   useEffect(() => {
@@ -707,12 +716,12 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
 
   // Scroll to bottom on initial load (fix for history sessions)
   useEffect(() => {
-    if (display.length > 0 && prevCount === 0) {
+    if (filteredDisplay.length > 0 && prevCount === 0) {
       // Small delay to let react-window measure row heights
       const timer = setTimeout(safeScrollToEnd, 100);
       return () => clearTimeout(timer);
     }
-  }, [display.length, prevCount, listRef]);
+  }, [filteredDisplay.length, prevCount, listRef]);
 
   // On container resize (orientation change, keyboard), re-scroll if auto-scroll is on
   const handleResize = useCallback((_size: { height: number; width: number }) => {
@@ -743,11 +752,11 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
     return () => el.removeEventListener('scroll', handleNativeScroll);
   }, [listRef, handleNativeScroll]);
 
-  const rowProps: RowProps = { display, isExpanded, toggleGroup, sessionId };
+  const rowProps: RowProps = { display: filteredDisplay, isExpanded, toggleGroup, sessionId };
 
   return (
     <div className="output-container" role="log" aria-label="Session output">
-      {display.length === 0 ? (
+      {filteredDisplay.length === 0 ? (
         <div className="output-scroll">
           <div className={`output-empty${isLoading ? ' loading' : ''}`}>
             {isLoading ? 'Loading session history...' : 'Send a message to start the agent'}
@@ -757,7 +766,7 @@ export default function OutputStream({ sessionId }: { sessionId: string }) {
         <List<RowProps>
           listRef={listRef}
           className="output-virtual-list"
-          rowCount={display.length}
+          rowCount={filteredDisplay.length}
           rowHeight={dynamicHeight}
           rowComponent={OutputRow}
           rowProps={rowProps}

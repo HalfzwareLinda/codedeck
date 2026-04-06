@@ -14,10 +14,16 @@ pub struct AppConfig {
     pub workspace_base_path: String,
     pub max_sessions: u32,
     pub model: String,
+    #[serde(default = "default_show_session_metadata")]
+    pub show_session_metadata: bool,
 }
 
 fn default_effort() -> String {
     "auto".to_string()
+}
+
+fn default_show_session_metadata() -> bool {
+    true
 }
 
 impl Default for AppConfig {
@@ -31,6 +37,7 @@ impl Default for AppConfig {
             workspace_base_path: String::new(),
             max_sessions: 20,
             model: "claude-sonnet-4-20250514".to_string(),
+            show_session_metadata: true,
         }
     }
 }
@@ -52,6 +59,8 @@ pub struct FullConfig {
     pub workspace_base_path: String,
     pub max_sessions: u32,
     pub model: String,
+    #[serde(default = "default_show_session_metadata")]
+    pub show_session_metadata: bool,
 }
 
 impl FullConfig {
@@ -72,6 +81,7 @@ impl FullConfig {
             workspace_base_path: config.workspace_base_path.clone(),
             max_sessions: config.max_sessions,
             model: config.model.clone(),
+            show_session_metadata: config.show_session_metadata,
         }
     }
 
@@ -86,6 +96,7 @@ impl FullConfig {
             workspace_base_path: self.workspace_base_path.clone(),
             max_sessions: self.max_sessions,
             model: self.model.clone(),
+            show_session_metadata: self.show_session_metadata,
         }
     }
 }
