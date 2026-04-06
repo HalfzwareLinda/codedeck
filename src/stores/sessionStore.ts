@@ -343,9 +343,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
     }
 
-    // Stream end marker — skip, don't create an entry
+    // Stream end marker — don't create an entry, but mark session as needing attention
     if (entry.metadata?.stream_end) {
-      return state;
+      return { ...state, ...markUnread(state, sessionId) };
     }
 
     // Accumulate token usage directly in the store (don't mark unread for metrics)
@@ -898,6 +898,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           metadata: { ...entry.metadata, bridgeSeq: _seq },
         };
         get().addOutput(sessionId, mapped);
+
+        // Fire OS notification when Claude finishes responding
+        if (entry.metadata?.stream_end) {
+          notifyIfNeeded({
+            sessionId,
+            activeSessionId: get().activeSessionId,
+            type: 'session_complete',
+          });
+        }
 
         // Fire OS notification for interactive entries when app is backgrounded
         const special = entry.metadata?.special as string | undefined;
