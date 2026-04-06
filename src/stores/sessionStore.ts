@@ -749,7 +749,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     setBridgeHandlers(
       // onSessionList — incremental merge, preserves pending placeholders, deduplicates
-      (_machineName, incomingSessions) => {
+      ({ machine: _machineName, sessions: incomingSessions, authStatus }) => {
         const machines = get().machines;
         const machine = machines.find(m => m.hostname === _machineName) || machines[0];
         if (machine) {
@@ -858,6 +858,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               refreshing: false,
               ...(readyTsPruned ? { sessionReadyTimestamps: readyTsPruned } : {}),
               ...(dismissedPruned ? { dismissedSessionIds: dismissedPruned } : {}),
+              ...(authStatus ? {
+                machines: state.machines.map(m =>
+                  m.pubkeyHex === machine.pubkeyHex ? { ...m, authStatus } : m,
+                ),
+              } : {}),
             };
           });
 
@@ -1254,6 +1259,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set((state) => ({
           remoteSessionEffort: { ...state.remoteSessionEffort, [sessionId]: level },
         }));
+      },
+      // onCredentialsAck — bridge confirms credential storage, update machine immediately
+      (machineName: string, success: boolean, hasAnthropicKey: boolean, hasGithubPat: boolean, keyValid?: boolean, error?: string) => {
+        if (success) {
+          console.log(`[Store] Credentials saved on ${machineName} (hasKey=${hasAnthropicKey}, hasPat=${hasGithubPat}, valid=${keyValid})`);
+          set((state) => ({
+            machines: state.machines.map(m =>
+              m.hostname === machineName
+                ? { ...m, authStatus: { hasAnthropicKey, hasGithubPat, hasEnvKey: m.authStatus?.hasEnvKey ?? false } }
+                : m,
+            ),
+          }));
+        } else {
+          console.error(`[Store] Failed to save credentials on ${machineName}: ${error}`);
+        }
       },
     );
 

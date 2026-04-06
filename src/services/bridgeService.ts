@@ -32,7 +32,7 @@ import { uploadToBlossom, DEFAULT_BLOSSOM_SERVER } from '../utils/blossomUpload'
 const OUTPUT_EVENT_KIND = 4515;
 const SESSION_LIST_EVENT_KIND = 30515;
 
-type SessionListHandler = (machine: string, sessions: RemoteSessionInfo[]) => void;
+type SessionListHandler = (msg: { machine: string; sessions: RemoteSessionInfo[]; authStatus?: import('../types').AuthStatus }) => void;
 type OutputHandler = (sessionId: string, entry: RemoteOutputEntry, seq: number) => void;
 type HistoryHandler = (sessionId: string, entries: Array<{ seq: number; entry: RemoteOutputEntry }>, totalEntries: number, chunkIndex?: number, totalChunks?: number, requestId?: string) => void;
 type StatusHandler = (machine: string, status: 'connected' | 'disconnected' | 'connecting') => void;
@@ -44,6 +44,7 @@ type CloseSessionAckHandler = (sessionId: string, success: boolean) => void;
 type SessionReplacedHandler = (oldSessionId: string, newSession: RemoteSessionInfo) => void;
 type ModeConfirmedHandler = (sessionId: string, mode: import('../types').AgentMode) => void;
 type EffortConfirmedHandler = (sessionId: string, level: import('../types').EffortLevel) => void;
+type CredentialsAckHandler = (machine: string, success: boolean, hasAnthropicKey: boolean, hasGithubPat: boolean, keyValid?: boolean, error?: string) => void;
 
 let pool: SimplePool | null = null;
 const subscriptions: Map<string, ReturnType<SimplePool['subscribeMany']>> = new Map();
@@ -61,6 +62,7 @@ let onCloseSessionAck: CloseSessionAckHandler | null = null;
 let onSessionReplaced: SessionReplacedHandler | null = null;
 let onModeConfirmed: ModeConfirmedHandler | null = null;
 let onEffortConfirmed: EffortConfirmedHandler | null = null;
+let onCredentialsAck: CredentialsAckHandler | null = null;
 
 let ownSecretKeyBytes: Uint8Array | null = null;
 let ownPubkeyHex: string | null = null;
@@ -119,6 +121,7 @@ export function setBridgeHandlers(
   sessionReplacedHandler?: SessionReplacedHandler,
   modeConfirmedHandler?: ModeConfirmedHandler,
   effortConfirmedHandler?: EffortConfirmedHandler,
+  credentialsAckHandler?: CredentialsAckHandler,
 ): void {
   onSessionList = sessionListHandler;
   onOutput = outputHandler;
@@ -132,6 +135,7 @@ export function setBridgeHandlers(
   onSessionReplaced = sessionReplacedHandler ?? null;
   onModeConfirmed = modeConfirmedHandler ?? null;
   onEffortConfirmed = effortConfirmedHandler ?? null;
+  onCredentialsAck = credentialsAckHandler ?? null;
 }
 
 /**
@@ -448,6 +452,18 @@ export async function sendRemoteImage(
   }
 }
 
+/**
+ * Send API credentials to a bridge machine (NIP-44 encrypted).
+ */
+export async function sendSetCredentials(
+  machine: RemoteMachine,
+  anthropicApiKey?: string | null,
+  githubPat?: string | null,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'set-credentials', anthropicApiKey, githubPat };
+  await publishToMachine(machine, msg);
+}
+
 // --- Internal ---
 
 async function publishToMachine(machine: RemoteMachine, msg: BridgeOutboundMessage): Promise<boolean> {
@@ -518,7 +534,7 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
     switch (msg.type) {
       case 'sessions':
         lastSessionListTimestamps.set(_machine.pubkeyHex, event.created_at);
-        onSessionList?.(msg.machine, msg.sessions);
+        onSessionList?.({ machine: msg.machine, sessions: msg.sessions, authStatus: msg.authStatus });
         // Fresh session list = bridge is alive
         onStatus?.(_machine.hostname, 'connected');
         break;
@@ -551,6 +567,9 @@ function handleBridgeEvent(event: { pubkey: string; content: string; created_at:
         break;
       case 'effort-confirmed':
         onEffortConfirmed?.(msg.sessionId, msg.level);
+        break;
+      case 'credentials-ack':
+        onCredentialsAck?.(msg.machine, msg.success, msg.hasAnthropicKey, msg.hasGithubPat, msg.keyValid, msg.error);
         break;
     }
   } catch (err) {

@@ -85,12 +85,19 @@ export interface DmMessage {
 
 // --- Remote Bridge Types ---
 
+export interface AuthStatus {
+  hasAnthropicKey: boolean;
+  hasGithubPat: boolean;
+  hasEnvKey: boolean;
+}
+
 export interface RemoteMachine {
   hostname: string;
   npub: string;
   pubkeyHex: string;
   relays: string[];
   connected: boolean;
+  authStatus?: AuthStatus;
 }
 
 export interface RemoteSessionInfo {
@@ -114,7 +121,7 @@ export interface RemoteOutputEntry {
 }
 
 export type BridgeInboundMessage =
-  | { type: 'sessions'; machine: string; sessions: RemoteSessionInfo[] }
+  | { type: 'sessions'; machine: string; sessions: RemoteSessionInfo[]; authStatus?: AuthStatus }
   | { type: 'output'; sessionId: string; seq: number; entry: RemoteOutputEntry }
   | { type: 'history'; sessionId: string; entries: Array<{ seq: number; entry: RemoteOutputEntry }>; totalEntries: number; fromSeq: number; toSeq: number; chunkIndex?: number; totalChunks?: number; requestId?: string }
   | { type: 'session-pending'; pendingId: string; machine: string; createdAt: string }
@@ -124,7 +131,8 @@ export type BridgeInboundMessage =
   | { type: 'close-session-ack'; sessionId: string; success: boolean }
   | { type: 'session-replaced'; oldSessionId: string; newSession: RemoteSessionInfo }
   | { type: 'mode-confirmed'; sessionId: string; mode: AgentMode }
-  | { type: 'effort-confirmed'; sessionId: string; level: EffortLevel };
+  | { type: 'effort-confirmed'; sessionId: string; level: EffortLevel }
+  | { type: 'credentials-ack'; machine: string; success: boolean; hasAnthropicKey: boolean; hasGithubPat: boolean; keyValid?: boolean; error?: string };
 
 export type BridgeOutboundMessage =
   | { type: 'input'; sessionId: string; text: string }
@@ -139,4 +147,5 @@ export type BridgeOutboundMessage =
   | { type: 'interrupt'; sessionId: string }
   | { type: 'close-session'; sessionId: string }
   | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number }
-  | { type: 'upload-image'; sessionId: string; hash: string; url: string; key: string; iv: string; filename: string; mimeType: string; text: string; sizeBytes: number };
+  | { type: 'upload-image'; sessionId: string; hash: string; url: string; key: string; iv: string; filename: string; mimeType: string; text: string; sizeBytes: number }
+  | { type: 'set-credentials'; anthropicApiKey?: string | null; githubPat?: string | null };

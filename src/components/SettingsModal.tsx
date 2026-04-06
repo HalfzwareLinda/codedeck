@@ -5,6 +5,7 @@ import { useDmStore } from '../stores/dmStore';
 import { AppConfig, AgentMode, EffortLevel, RemoteMachine } from '../types';
 import { parsePrivateKey, getPubkeyHex, parsePublicKey } from '../services/nostrService';
 import { api } from '../ipc/tauri';
+import { sendSetCredentials } from '../services/bridgeService';
 import * as nip19 from 'nostr-tools/nip19';
 import { DEFAULT_BLOSSOM_SERVER } from '../utils/blossomUpload';
 import '../styles/modal.css';
@@ -371,15 +372,31 @@ export default function SettingsModal() {
                   <span className={`dm-connection-dot ${m.connected ? 'connected' : 'disconnected'}`} style={{ marginRight: 6 }} />
                   {m.hostname}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m.npub.slice(0, 20)}...</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {m.authStatus?.hasAnthropicKey
+                    ? (m.authStatus.hasEnvKey ? 'API key: env var' : 'API key: configured')
+                    : 'No API key'}
+                </div>
               </div>
-              <button
-                className="show-hide-btn"
-                onClick={() => removeMachine(m.pubkeyHex)}
-                style={{ color: '#ef4444' }}
-              >
-                Remove
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="show-hide-btn"
+                  onClick={async () => {
+                    const key = local.anthropic_api_key?.trim();
+                    if (!key) { alert('Enter an API key in the Authentication section first.'); return; }
+                    await sendSetCredentials(m, key, local.github_pat?.trim() || null);
+                  }}
+                >
+                  {m.authStatus?.hasAnthropicKey ? 'Update Key' : 'Send Key'}
+                </button>
+                <button
+                  className="show-hide-btn"
+                  onClick={() => removeMachine(m.pubkeyHex)}
+                  style={{ color: '#ef4444' }}
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
 
