@@ -41,7 +41,7 @@ See `src/services/bridgeService.ts` and `src/types.ts` for protocol types.
 
 ## Related Repo
 
-- `codedeck-bridge-vscode/` — VSCode extension that watches Claude Code JSONL files and relays over Nostr
+- `codedeck-bridge-vscode/` — VSCode extension that uses the Claude Agent SDK to spawn Claude Code subprocesses and relays over Nostr
 - GitHub: `HalfzwareLinda/codedeck-bridge-vscode`
 
 ## Conventions
