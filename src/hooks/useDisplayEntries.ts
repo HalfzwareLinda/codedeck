@@ -245,11 +245,22 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
       continue;
     }
 
-    // Plan approval and question cards: show in completed state if answered
-    const answerContent = toolUseId ? answeredMap.get(toolUseId) : undefined;
+    // Plan text entry (emitted by bridge before plan_approval with same tool_use_id).
+    // After approval: show as collapsible "Plan approved". Before: show as readable text.
+    if (special === 'plan') {
+      const isAnswered = toolUseId && answeredMap.has(toolUseId);
+      if (isAnswered) {
+        display.push({ kind: 'plan_confirmation', entry, sourceStart: i });
+      } else {
+        display.push({ kind: 'assistant_message', entry, sourceStart: i });
+      }
+      continue;
+    }
 
     if (special === 'plan_approval') {
-      display.push({ kind: 'plan_approval', entry, sourceStart: i, answered: answerContent });
+      // Use short label instead of raw tool_result content for answered state
+      const isAnswered = toolUseId ? answeredMap.has(toolUseId) : false;
+      display.push({ kind: 'plan_approval', entry, sourceStart: i, answered: isAnswered ? 'Plan approved' : undefined });
       lastWasPlanApproval = true;
       continue;
     }
@@ -268,27 +279,33 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     switch (entry.entry_type) {
       case 'user_message':
         display.push({ kind: 'user_message', entry, sourceStart: i });
+        lastWasPlanApproval = false;
         break;
+      case 'text':
       case 'message':
         if (lastWasPlanApproval) {
           display.push({ kind: 'plan_confirmation', entry, sourceStart: i });
         } else {
           display.push({ kind: 'assistant_message', entry, sourceStart: i });
         }
+        lastWasPlanApproval = false;
         break;
       case 'error':
         display.push({ kind: 'error', entry, sourceStart: i });
+        lastWasPlanApproval = false;
         break;
       case 'diff':
         display.push({ kind: 'diff', entry, sourceStart: i });
+        lastWasPlanApproval = false;
         break;
       case 'system':
+        // Don't reset lastWasPlanApproval — token usage entries follow plan_approval
         display.push({ kind: 'system', entry, sourceStart: i });
         break;
       default:
         display.push({ kind: 'assistant_message', entry, sourceStart: i });
+        lastWasPlanApproval = false;
     }
-    lastWasPlanApproval = false;
   }
 
   // Flush any trailing groups
