@@ -270,6 +270,17 @@ export async function sendRemoteQuestionInput(
 }
 
 /**
+ * Interrupt a running session (equivalent to Ctrl+C / stop button).
+ */
+export async function sendInterrupt(
+  machine: RemoteMachine,
+  sessionId: string,
+): Promise<void> {
+  const msg: BridgeOutboundMessage = { type: 'interrupt', sessionId };
+  await publishToMachine(machine, msg);
+}
+
+/**
  * Send a single raw keypress to a Claude Code session (plan approval, question selection).
  * Routed through sendKeypress on the bridge — no Escape/Enter wrapping.
  */

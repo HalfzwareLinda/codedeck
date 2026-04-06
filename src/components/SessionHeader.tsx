@@ -69,6 +69,13 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
             </div>
             <div className="header-subtitle">{remoteSession.project || remoteSession.cwd}</div>
           </div>
+          <button
+            className="header-btn header-cancel"
+            onClick={() => cancelAgent(remoteSession.id)}
+            title="Interrupt session"
+          >
+            &#x25A0;
+          </button>
           {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
             <div className="header-tokens">{formatTokens(tokenUsage)}</div>
           )}

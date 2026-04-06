@@ -18,6 +18,7 @@ import {
   sendRefreshRequest,
   sendCloseSessionRequest,
   sendRemoteEffortChange,
+  sendInterrupt,
 } from '../services/bridgeService';
 import { invoke } from '@tauri-apps/api/core';
 import { persistGet, persistSet } from '../services/persistStore';
@@ -536,6 +537,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   cancelAgent: async (sessionId) => {
+    // Remote session: send interrupt message to bridge
+    const machine = get().getMachineForSession(sessionId);
+    if (machine) {
+      try {
+        await sendInterrupt(machine, sessionId);
+      } catch (e) {
+        get().addOutput(sessionId, {
+          entry_type: 'error',
+          content: `Interrupt failed: ${e}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      return;
+    }
+
     if (!isTauri()) {
       // Mock: just set to completed
       const session = get().sessions.find(s => s.id === sessionId);

@@ -135,6 +135,7 @@ export type BridgeOutboundMessage =
   | { type: 'history-request'; sessionId: string; afterSeq?: number }
   | { type: 'create-session'; defaultEffort?: EffortLevel }
   | { type: 'refresh-sessions' }
+  | { type: 'interrupt'; sessionId: string }
   | { type: 'close-session'; sessionId: string }
   | { type: 'upload-image'; sessionId: string; uploadId: string; filename: string; mimeType: string; base64Data: string; text: string; chunkIndex: number; totalChunks: number }
   | { type: 'upload-image'; sessionId: string; hash: string; url: string; key: string; iv: string; filename: string; mimeType: string; text: string; sizeBytes: number };
