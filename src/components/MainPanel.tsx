@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
 import { useUIStore } from '../stores/uiStore';
@@ -19,6 +19,8 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
   const sessions = useSessionStore((s) => s.sessions);
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const activeConversationId = useDmStore((s) => s.activeConversationId);
+  const conversations = useDmStore((s) => s.conversations);
+  const setActiveConversation = useDmStore((s) => s.setActiveConversation);
   const remoteSessions = useSessionStore((s) => s.remoteSessions);
   const remoteSessionModes = useSessionStore((s) => s.remoteSessionModes);
   const remoteSessionEffort = useSessionStore((s) => s.remoteSessionEffort);
@@ -51,10 +53,30 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
     }
   }, [orderedIds, activeSessionId, setActiveSession, setPanelMode, requestSessionHistory]);
 
+  // Ordered conversation IDs — sorted by most recent message (same order as sidebar)
+  const orderedConvIds = useMemo(
+    () => [...conversations]
+      .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
+      .map(c => c.id),
+    [conversations],
+  );
+
+  const navigateConversation = useCallback((direction: 'next' | 'prev') => {
+    if (orderedConvIds.length <= 1 || !activeConversationId) return;
+    const currentIndex = orderedConvIds.indexOf(activeConversationId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'next'
+      ? (currentIndex + 1) % orderedConvIds.length
+      : (currentIndex - 1 + orderedConvIds.length) % orderedConvIds.length;
+
+    setActiveConversation(orderedConvIds[newIndex]);
+  }, [orderedConvIds, activeConversationId, setActiveConversation]);
+
   const { containerRef, touchHandlers } = useSwipeToNavigate({
-    onSwipeLeft: () => navigateSession('next'),
-    onSwipeRight: () => navigateSession('prev'),
-    enabled: isTouchDevice && panelMode === 'session',
+    onSwipeLeft: () => panelMode === 'dm' ? navigateConversation('next') : navigateSession('next'),
+    onSwipeRight: () => panelMode === 'dm' ? navigateConversation('prev') : navigateSession('prev'),
+    enabled: isTouchDevice && (panelMode === 'session' || panelMode === 'dm'),
   });
 
   // Find remote session info if not a local session
