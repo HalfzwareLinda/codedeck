@@ -46,7 +46,9 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
     const currentIndex = orderedIds.indexOf(activeSessionId);
     if (currentIndex === -1) return;
 
-    const newSessionId = orderedIds[cycleIndex(currentIndex, orderedIds.length, direction === 'next' ? 1 : -1)];
+    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex < 0 || newIndex >= orderedIds.length) return;
+    const newSessionId = orderedIds[newIndex];
     setActiveSession(newSessionId);
     setPanelMode('session');
 

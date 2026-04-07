@@ -23,16 +23,31 @@ else
   exit 1
 fi
 
-# --- MainActivity.kt: add enableEdgeToEdge() ---
+# --- MainActivity.kt: add enableEdgeToEdge() + keyboard insets listener ---
 if [ -f "$ACTIVITY" ]; then
   if ! grep -q 'enableEdgeToEdge' "$ACTIVITY"; then
-    # Add import
-    sed -i '/^import android.os.Bundle/a import androidx.activity.enableEdgeToEdge' "$ACTIVITY"
+    # Add imports
+    sed -i '/^import android.os.Bundle/a import androidx.activity.enableEdgeToEdge\nimport androidx.core.view.ViewCompat\nimport androidx.core.view.WindowInsetsCompat' "$ACTIVITY"
     # Add enableEdgeToEdge() call before super.onCreate
     sed -i 's|super.onCreate(savedInstanceState)|enableEdgeToEdge()\n    super.onCreate(savedInstanceState)|' "$ACTIVITY"
     echo "✓ Patched MainActivity.kt: added enableEdgeToEdge()"
   else
     echo "· MainActivity.kt already has enableEdgeToEdge()"
+  fi
+
+  # Add keyboard insets listener (resizes WebView when keyboard appears)
+  if ! grep -q 'WindowInsetsCompat.Type.ime' "$ACTIVITY"; then
+    sed -i '/super.onCreate(savedInstanceState)/a \
+\n    // Resize WebView when keyboard appears (enableEdgeToEdge disables adjustResize on API 30+)\
+    val contentView = findViewById<android.view.View>(android.R.id.content)\
+    ViewCompat.setOnApplyWindowInsetsListener(contentView) { view, insets ->\
+      val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom\
+      view.setPadding(0, 0, 0, imeHeight)\
+      insets\
+    }' "$ACTIVITY"
+    echo "✓ Patched MainActivity.kt: added keyboard insets listener"
+  else
+    echo "· MainActivity.kt already has keyboard insets listener"
   fi
 else
   echo "✗ MainActivity.kt not found at $ACTIVITY"
