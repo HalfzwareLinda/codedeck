@@ -78,12 +78,6 @@ export interface PlanConfirmationDisplay extends DisplayEntryBase {
   entry: OutputEntry;
 }
 
-export interface CollapsibleMessageDisplay extends DisplayEntryBase {
-  kind: 'collapsible_message';
-  entry: OutputEntry;
-  summary: string;
-}
-
 export type DisplayEntry =
   | UserMessageDisplay
   | AssistantMessageDisplay
@@ -95,13 +89,27 @@ export type DisplayEntry =
   | QuestionDisplay
   | QuestionGroupDisplay
   | PermissionRequestDisplay
-  | PlanConfirmationDisplay
-  | CollapsibleMessageDisplay;
+  | PlanConfirmationDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
 
 function isToolEntry(entry: OutputEntry): boolean {
   return TOOL_ENTRY_TYPES.has(entry.entry_type);
+}
+
+/** Check if a non-tool entry should be absorbed into the current tool group.
+ *  Assistant text (no special metadata) followed by more tool entries stays in the group. */
+function isAbsorbableEntry(entry: OutputEntry, outputs: OutputEntry[], index: number): boolean {
+  if (entry.metadata?.special) return false;
+  if (entry.entry_type !== 'message' && entry.entry_type !== 'text') return false;
+  if (entry.metadata?.role !== 'assistant') return false;
+
+  for (let j = index + 1; j < outputs.length; j++) {
+    if (isToolEntry(outputs[j])) return true;
+    if (outputs[j].entry_type === 'token_usage' || outputs[j].entry_type === 'system') continue;
+    break;
+  }
+  return false;
 }
 
 /** Build a summary string for a group of tool entries, e.g. "3 actions — Bash, Edit, Read" */
@@ -119,7 +127,7 @@ function buildToolSummary(entries: OutputEntry[]): string {
       }
     }
   }
-  const count = entries.length;
+  const count = entries.filter(e => isToolEntry(e)).length;
   const names = toolNames.length > 0 ? toolNames.join(', ') : 'tools';
   return `${count} action${count !== 1 ? 's' : ''} — ${names}`;
 }
@@ -220,7 +228,11 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
       continue;
     }
 
-    // Non-tool entry — flush any pending tool group first
+    // Non-tool entry — absorb assistant text into tool group if more tools follow
+    if (currentToolGroup.length > 0 && isAbsorbableEntry(entry, outputs, i)) {
+      currentToolGroup.push(entry);
+      continue;
+    }
     flushToolGroup();
 
     const special = entry.metadata?.special as string | undefined;
@@ -322,54 +334,6 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   return display;
 }
 
-const COLLAPSIBLE_MIN_LENGTH = 200;
-const COLLAPSIBLE_MIN_LINES = 3;
-const SUMMARY_MAX_LENGTH = 80;
-
-function buildCollapsibleSummary(content: string): string {
-  const firstLine = content.split('\n')[0].trim();
-  if (firstLine.length <= SUMMARY_MAX_LENGTH) return firstLine;
-  return firstLine.slice(0, SUMMARY_MAX_LENGTH - 1) + '\u2026';
-}
-
-function isLongEnough(content: string): boolean {
-  if (content.length >= COLLAPSIBLE_MIN_LENGTH) return true;
-  return content.split('\n').filter(l => l.trim()).length >= COLLAPSIBLE_MIN_LINES;
-}
-
-/** Reclassify long assistant messages followed by tool groups as collapsible. */
-function reclassifyCollapsibleMessages(display: DisplayEntry[]): DisplayEntry[] {
-  // The last assistant_message (before the final user_message or end) is the
-  // "final answer" — never collapse it.
-  let lastAnswerIndex = -1;
-  for (let i = display.length - 1; i >= 0; i--) {
-    const k = display[i].kind;
-    if (k === 'assistant_message') { lastAnswerIndex = i; break; }
-    if (k === 'user_message') break;
-  }
-
-  return display.map((item, i) => {
-    if (item.kind !== 'assistant_message') return item;
-    if (i === lastAnswerIndex) return item;
-    if (!isLongEnough(item.entry.content)) return item;
-
-    let followedByToolGroup = false;
-    for (let j = i + 1; j < display.length; j++) {
-      const k = display[j].kind;
-      if (k === 'tool_group') { followedByToolGroup = true; break; }
-      if (k === 'user_message') break;
-    }
-    if (!followedByToolGroup) return item;
-
-    return {
-      kind: 'collapsible_message' as const,
-      entry: item.entry,
-      summary: buildCollapsibleSummary(item.entry.content),
-      sourceStart: item.sourceStart,
-    };
-  });
-}
-
 /**
  * Hook that transforms flat OutputEntry[] into grouped DisplayEntry[],
  * and manages collapse state for tool groups.
@@ -381,7 +345,7 @@ function reclassifyCollapsibleMessages(display: DisplayEntry[]): DisplayEntry[] 
 export function useDisplayEntries(outputs: OutputEntry[]) {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
 
-  const display = useMemo(() => reclassifyCollapsibleMessages(buildDisplayEntries(outputs)), [outputs]);
+  const display = useMemo(() => buildDisplayEntries(outputs), [outputs]);
 
   const toggleGroup = useCallback((sourceStart: number) => {
     setExpanded((prev) => {

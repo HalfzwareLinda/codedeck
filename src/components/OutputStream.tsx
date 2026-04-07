@@ -12,7 +12,6 @@ import {
   ToolGroupDisplay,
   PlanApprovalDisplay,
   PlanConfirmationDisplay,
-  CollapsibleMessageDisplay,
   QuestionDisplay,
   QuestionGroupDisplay,
   PermissionRequestDisplay,
@@ -627,8 +626,6 @@ function DisplayItem({
       return <QuestionGroupEntry item={item} sessionId={sessionId} />;
     case 'permission_request':
       return <PermissionRequestEntry item={item} sessionId={sessionId} />;
-    case 'collapsible_message':
-      return <CollapsibleEntry summary={(item as CollapsibleMessageDisplay).summary} content={(item as CollapsibleMessageDisplay).entry.content} expanded={expanded} onToggle={onToggle} />;
     default:
       return null;
   }
@@ -660,7 +657,7 @@ function OutputRow({
   sessionId: string;
 }) {
   const item = display[index];
-  const expanded = (item.kind === 'tool_group' || item.kind === 'plan_confirmation' || item.kind === 'collapsible_message') ? isExpanded(item.sourceStart) : false;
+  const expanded = (item.kind === 'tool_group' || item.kind === 'plan_confirmation') ? isExpanded(item.sourceStart) : false;
   const onToggle = useCallback(() => toggleGroup(item.sourceStart), [toggleGroup, item.sourceStart]);
 
   return (
