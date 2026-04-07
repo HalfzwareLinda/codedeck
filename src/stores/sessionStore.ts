@@ -273,6 +273,14 @@ function markUnread(state: SessionStore, sessionId: string): Partial<SessionStor
   return { unreadSessions: new Set([...state.unreadSessions, sessionId]) };
 }
 
+/** Remove sessionId from unreadSessions (called when the user actually responds). */
+function clearUnread(state: SessionStore, sessionId: string): Partial<SessionStore> {
+  if (!state.unreadSessions.has(sessionId)) return {};
+  const unreadSessions = new Set(state.unreadSessions);
+  unreadSessions.delete(sessionId);
+  return { unreadSessions };
+}
+
 /** Returns true when the entry represents an interactive prompt requiring user action. */
 function needsUserInput(entry: OutputEntry): boolean {
   const special = entry.metadata?.special as string | undefined;
@@ -323,12 +331,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   setPendingRevision: (sessionId) => set({ pendingRevisionSession: sessionId }),
 
-  setActiveSession: (id) => set((state) => {
-    if (!state.unreadSessions.has(id)) return { activeSessionId: id };
-    const unreadSessions = new Set(state.unreadSessions);
-    unreadSessions.delete(id);
-    return { activeSessionId: id, unreadSessions };
-  }),
+  setActiveSession: (id) => set({ activeSessionId: id }),
 
   addOutput: (sessionId, entry) => set((state) => {
     const existing = state.outputs[sessionId] || [];
@@ -472,6 +475,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   sendMessage: async (sessionId, text, image) => {
+    set((state) => clearUnread(state, sessionId));
     get().addOutput(sessionId, {
       entry_type: 'user_message',
       content: text || (image ? `[Image: ${image.filename}]` : ''),
@@ -579,6 +583,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   respondPermission: async (sessionId, requestId, allow) => {
+    set((state) => clearUnread(state, sessionId));
     if (!isTauri()) {
       // Mock: remove permission and resume
       const session = get().sessions.find(s => s.id === sessionId);
@@ -1509,6 +1514,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   respondRemotePermission: async (sessionId, requestId, allow, modifier) => {
+    set((state) => clearUnread(state, sessionId));
     const machine = get().getMachineForSession(sessionId);
     if (!machine) {
       console.warn('[SessionStore] respondRemotePermission: no machine for session', sessionId);
@@ -1522,6 +1528,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   sendRemoteKeypress: async (sessionId, key, context?) => {
+    set((state) => clearUnread(state, sessionId));
     const machine = get().getMachineForSession(sessionId);
     if (!machine) {
       console.warn('[SessionStore] sendRemoteKeypress: no machine for session', sessionId);
