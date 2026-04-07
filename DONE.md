@@ -76,3 +76,12 @@
 ## Pairing Improvements (2026-04-02)
 
 - [x] **CD-027: Apply blossom + relay config from pairing deep link** — Deep link handler now merges pairing relays into DM relay list and applies Blossom server URL in a single atomic config update (`30682c3`, 2026-04-02)
+
+## DM Swipe Navigation (2026-04-07)
+
+- [x] **CD-028: Swipe left/right to navigate between DM conversations** — Reuses existing `useSwipeToNavigate` hook for DM panel mode, cycling through conversations sorted by most recent message (`a0fecb9`, 2026-04-07)
+
+## TODO Cleanup (2026-04-07)
+
+- [x] **CD-018: Increase DM row height in sidebar** — Direct message rows in the left column height increased for better readability (2026-04-07)
+- [x] **CD-024: Fix excess "1111111" in terminal tool approval** — Fixed excess `1111111` characters in the tool approval UI (2026-04-07)

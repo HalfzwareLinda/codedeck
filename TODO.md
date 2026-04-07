@@ -29,13 +29,10 @@
 - [ ] **CD-015: Option to move session column to right side** — Add a setting to move the left session sidebar to the right-hand side of the screen.
 - [ ] **CD-016: Fix microphone button functionality** — Microphone button is not working correctly; investigate and fix speech input.
 - [ ] **CD-017: Remove local sessions functionality** — Strip out local session support; Codedeck should only handle remote/bridge sessions.
-- [ ] **CD-018: Increase DM row height in sidebar** — Direct message rows in the left column are too short; increase their height for better readability.
 - [ ] **CD-019: Clean up settings menu** — Audit SettingsModal for unused or obsolete options and remove them.
-- [ ] **CD-024: Fix excess "1111111" in terminal tool approval** — Terminal output shows excess `1111111` characters in the tool approval UI; investigate and fix.
 
 ## Future Improvements
 
-- [ ] **CD-022: Centralize plan approval options in bridge** — Move hardcoded plan approval menu options from both phone UI (`OutputStream.tsx`) and bridge (`core.ts`) into a single constant in the bridge, sent as structured metadata to the phone (same pattern as `AskUserQuestion`). Reduces update burden when Claude Code CLI changes its plan menu from 2 places to 1.
 - [ ] **CD-026: Most used prompts in UI** — Implement a "most used prompts" feature in the phone UI so users can quickly access and reuse their frequently sent prompts.
 
 ## Protocol
