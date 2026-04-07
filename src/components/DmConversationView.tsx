@@ -33,6 +33,7 @@ export default function DmConversationView({ conversationId, isWide }: { convers
 
   const [text, setText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isTouchDevice = useMediaQuery('(pointer: coarse)');
 
@@ -70,6 +71,21 @@ export default function DmConversationView({ conversationId, isWide }: { convers
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
   }, [messages.length]);
+
+  // Auto-scroll on container resize (keyboard open/close) if near bottom
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const nearBottom = scrollHeight - scrollTop - clientHeight < 150;
+      if (nearBottom) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -124,7 +140,7 @@ export default function DmConversationView({ conversationId, isWide }: { convers
         </div>
       </div>
 
-      <div className="dm-messages">
+      <div className="dm-messages" ref={messagesContainerRef}>
         {messages.map((msg) => {
           const recipientPubkey = conversation.participants.find(p => p !== ownPubkey);
           const handleRetry = () => {

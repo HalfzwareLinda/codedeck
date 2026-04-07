@@ -63,6 +63,10 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
+#root {
+  height: var(--app-height, 100%);
+}
+
 input, textarea, button {
   font-family: inherit;
   color: inherit;
