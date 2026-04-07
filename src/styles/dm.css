@@ -2,7 +2,7 @@
 
 .dm-section {
   flex-shrink: 0;
-  height: 352px; /* heading (~32px) + 5 tiles (64px each) */
+  height: 288px; /* heading (~32px) + 4 tiles (64px each) */
   border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
@@ -363,7 +363,7 @@
 .dm-input-bar {
   display: flex;
   gap: 8px;
-  padding: 12px 16px calc(12px + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
