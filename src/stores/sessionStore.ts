@@ -269,9 +269,9 @@ function mockAgentResponse(sessionId: string, text: string, get: () => SessionSt
   steps.forEach(({ delay, fn }) => setTimeout(fn, delay));
 }
 
-/** Add sessionId to unreadSessions only if it is not the active session and not already marked. */
+/** Add sessionId to unreadSessions if not already marked. */
 function markUnread(state: SessionStore, sessionId: string): Partial<SessionStore> {
-  if (state.activeSessionId === sessionId || state.unreadSessions.has(sessionId)) return {};
+  if (state.unreadSessions.has(sessionId)) return {};
   return { unreadSessions: new Set([...state.unreadSessions, sessionId]) };
 }
 
