@@ -167,6 +167,7 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
         sourceStart: toolGroupStart,
       });
       currentToolGroup = [];
+      lastWasPlanApproval = false;
     }
   }
 
