@@ -112,24 +112,10 @@ function isAbsorbableEntry(entry: OutputEntry, outputs: OutputEntry[], index: nu
   return false;
 }
 
-/** Build a summary string for a group of tool entries, e.g. "3 actions — Bash, Edit, Read" */
+/** Build a summary string for a group of tool entries, e.g. "3 actions" */
 function buildToolSummary(entries: OutputEntry[]): string {
-  const toolNames: string[] = [];
-  for (const e of entries) {
-    const name = e.metadata?.tool_name as string | undefined;
-    if (name && !toolNames.includes(name)) {
-      toolNames.push(name);
-    } else if (!name && e.entry_type === 'tool_use') {
-      // Try to extract tool name from content (e.g., "Bash: ...")
-      const match = e.content.match(/^(\w+):/);
-      if (match && !toolNames.includes(match[1])) {
-        toolNames.push(match[1]);
-      }
-    }
-  }
   const count = entries.filter(e => isToolEntry(e)).length;
-  const names = toolNames.length > 0 ? toolNames.join(', ') : 'tools';
-  return `${count} action${count !== 1 ? 's' : ''} — ${names}`;
+  return `${count} action${count !== 1 ? 's' : ''}`;
 }
 
 /**
