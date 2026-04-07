@@ -126,8 +126,8 @@ export default function SettingsModal() {
     return nip19.npubEncode(hex);
   }, [nostrKey]);
 
-  const handleSave = () => {
-    updateConfig(local);
+  const handleSave = async () => {
+    await updateConfig(local);
 
     // Parse and save nostr config — store as hex internally
     const sk = nostrKey ? parsePrivateKey(nostrKey) : null;
