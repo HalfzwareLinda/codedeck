@@ -97,15 +97,31 @@ function isToolEntry(entry: OutputEntry): boolean {
   return TOOL_ENTRY_TYPES.has(entry.entry_type);
 }
 
+/** Check if this entry is the final assistant response (no more tool entries follow). */
+function isFinalResponse(outputs: OutputEntry[], index: number): boolean {
+  for (let j = index + 1; j < outputs.length; j++) {
+    const next = outputs[j];
+    if (isToolEntry(next)) return false;
+    if (next.entry_type === 'user_message') return true;
+    if (next.entry_type === 'system' || next.entry_type === 'token_usage') continue;
+    if ((next.entry_type === 'message' || next.entry_type === 'text') &&
+        !next.metadata?.special && next.metadata?.role !== 'user') continue;
+    break;
+  }
+  return true;
+}
+
 /** Check if a non-tool entry should be absorbed into the current tool group.
  *  Assistant text (no special metadata) followed by more tool entries stays in the group.
  *  The lookahead skips over other absorbable text entries so consecutive assistant
- *  messages (e.g. explanation + agent prompt) before a tool_use are all absorbed. */
-function isAbsorbableEntry(entry: OutputEntry, outputs: OutputEntry[], index: number): boolean {
+ *  messages (e.g. explanation + agent prompt) before a tool_use are all absorbed.
+ *  When already inside an active tool group, also absorbs text that isn't the final response. */
+function isAbsorbableEntry(entry: OutputEntry, outputs: OutputEntry[], index: number, insideToolGroup = false): boolean {
   if (entry.metadata?.special) return false;
   if (entry.entry_type !== 'message' && entry.entry_type !== 'text') return false;
   if (entry.metadata?.role === 'user') return false;
 
+  // Forward lookahead: check if more tool entries follow
   for (let j = index + 1; j < outputs.length; j++) {
     const next = outputs[j];
     if (isToolEntry(next)) return true;
@@ -115,6 +131,10 @@ function isAbsorbableEntry(entry: OutputEntry, outputs: OutputEntry[], index: nu
         !next.metadata?.special && next.metadata?.role !== 'user') continue;
     break;
   }
+
+  // Fallback: if inside an active tool group and not the final response, absorb
+  if (insideToolGroup && !isFinalResponse(outputs, index)) return true;
+
   return false;
 }
 
@@ -221,8 +241,18 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
       continue;
     }
 
+    // Bridge-tagged agent prompt or sub-agent text → always absorb into tool group
+    if ((entry.metadata?.agent_prompt || entry.metadata?.subagent) &&
+        !entry.metadata?.special &&
+        (entry.entry_type === 'message' || entry.entry_type === 'text') &&
+        entry.metadata?.role !== 'user') {
+      if (currentToolGroup.length === 0) toolGroupStart = i;
+      currentToolGroup.push(entry);
+      continue;
+    }
+
     // Non-tool entry — absorb assistant text if more tools follow
-    if (isAbsorbableEntry(entry, outputs, i)) {
+    if (isAbsorbableEntry(entry, outputs, i, currentToolGroup.length > 0)) {
       if (currentToolGroup.length === 0) toolGroupStart = i;
       currentToolGroup.push(entry);
       continue;
@@ -327,6 +357,9 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
 
   return display;
 }
+
+/** @internal Exported for testing only */
+export { buildDisplayEntries as _buildDisplayEntries };
 
 /**
  * Hook that transforms flat OutputEntry[] into grouped DisplayEntry[],
