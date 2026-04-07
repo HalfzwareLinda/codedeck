@@ -107,7 +107,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
+        height: 'var(--app-height, 100%)',
         minWidth: 0,
         background: 'var(--bg-black)',
       }}
