@@ -623,6 +623,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_background_relay::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_tts::init())
         .setup(|app| {
             // Initialize Stronghold encrypted storage
             let salt_path = app.path()

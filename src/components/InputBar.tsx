@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { AgentMode, EffortLevel } from '../types';
 import { useSessionStore } from '../stores/sessionStore';
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useSpeechContext } from '../contexts/SpeechContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { processImageFile } from '../utils/imageUtils';
+import QuickPromptBar from './QuickPromptBar';
 import '../styles/input.css';
 
 interface PendingImage {
@@ -86,7 +87,13 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
     interimTranscript,
     startListening,
     stopListening,
-  } = useSpeechRecognition(handleDictationResult);
+    setInputHandler,
+  } = useSpeechContext();
+
+  // Register InputBar's dictation handler (low priority — voice mode overrides when active)
+  useEffect(() => {
+    setInputHandler(handleDictationResult);
+  }, [setInputHandler, handleDictationResult]);
 
   const displayValue = interimTranscript
     ? text + (text && !text.endsWith(' ') ? ' ' : '') + interimTranscript
@@ -215,6 +222,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
 
   return (
     <div className="input-bar-wrapper">
+      <QuickPromptBar sessionId={sessionId} disabled={sending || bridgeOffline} />
       {bridgeOffline && (
         <div className="input-no-terminal-notice">
           Bridge offline — waiting for reconnection
@@ -254,6 +262,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
         <div className="left-controls">
           <button
             className="attach-btn"
+            onPointerDown={e => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
             aria-label="Attach image"
             type="button"
@@ -270,11 +279,11 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
-          <button className={`mode-btn active${modeCooldown ? ' mode-cooldown' : ''}`} onClick={cycleMode}>
+          <button className={`mode-btn active${modeCooldown ? ' mode-cooldown' : ''}`} onPointerDown={e => e.preventDefault()} onClick={cycleMode}>
             {MODE_LABELS[mode ?? 'default']}
           </button>
           {effort !== undefined && (
-            <button className={`effort-btn active${effortCooldown ? ' effort-cooldown' : ''}`} onClick={cycleEffort}>
+            <button className={`effort-btn active${effortCooldown ? ' effort-cooldown' : ''}`} onPointerDown={e => e.preventDefault()} onClick={cycleEffort}>
               {EFFORT_LABELS[effort]}
             </button>
           )}

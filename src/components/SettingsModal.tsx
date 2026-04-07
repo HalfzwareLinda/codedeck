@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUIStore } from '../stores/uiStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useDmStore } from '../stores/dmStore';
+import { useVoiceModeStore } from '../stores/voiceModeStore';
+import { useQuickPromptStore } from '../stores/quickPromptStore';
 import { AppConfig, AgentMode, EffortLevel, RemoteMachine } from '../types';
 import { parsePrivateKey, getPubkeyHex, parsePublicKey } from '../services/nostrService';
 import { api } from '../ipc/tauri';
@@ -329,6 +331,12 @@ export default function SettingsModal() {
           </div>
         </div>
 
+        {/* Quick Prompts */}
+        <QuickPromptsSettings />
+
+        {/* Voice Mode */}
+        <VoiceModeSettings />
+
         {/* Nostr Identity */}
         <div className="modal-section">
           <h3 className="modal-section-title">Nostr Identity</h3>
@@ -491,6 +499,170 @@ export default function SettingsModal() {
 
         <button className="modal-primary-btn" onClick={handleSave}>
           Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VoiceModeSettings() {
+  const enabled = useVoiceModeStore((s) => s.enabled);
+  const setEnabled = useVoiceModeStore((s) => s.setEnabled);
+  const speechRate = useVoiceModeStore((s) => s.speechRate);
+  const setSpeechRate = useVoiceModeStore((s) => s.setSpeechRate);
+  const autoListen = useVoiceModeStore((s) => s.autoListenAfterRead);
+  const setAutoListen = useVoiceModeStore((s) => s.setAutoListenAfterRead);
+
+  return (
+    <div className="modal-section">
+      <h3 className="modal-section-title">Voice Mode</h3>
+
+      <div className="modal-toggle-row">
+        <span style={{ fontSize: 14 }}>Read actionable messages aloud</span>
+        <button
+          className={`toggle-switch ${enabled ? 'on' : 'off'}`}
+          onClick={() => setEnabled(!enabled)}
+        >
+          <div className="toggle-knob" />
+        </button>
+      </div>
+
+      <div className="modal-toggle-row">
+        <span style={{ fontSize: 14 }}>Auto-listen after reading</span>
+        <button
+          className={`toggle-switch ${autoListen ? 'on' : 'off'}`}
+          onClick={() => setAutoListen(!autoListen)}
+        >
+          <div className="toggle-knob" />
+        </button>
+      </div>
+
+      <label style={{ display: 'block', fontSize: 14, color: 'var(--text-secondary)', marginTop: 8 }}>
+        Speech rate: {speechRate.toFixed(1)}x
+      </label>
+      <input
+        type="range"
+        min={0.8}
+        max={1.5}
+        step={0.1}
+        value={speechRate}
+        onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+        style={{ width: '100%', marginTop: 4 }}
+      />
+    </div>
+  );
+}
+
+function QuickPromptsSettings() {
+  const prompts = useQuickPromptStore((s) => s.prompts);
+  const addPrompt = useQuickPromptStore((s) => s.addPrompt);
+  const updatePrompt = useQuickPromptStore((s) => s.updatePrompt);
+  const removePrompt = useQuickPromptStore((s) => s.removePrompt);
+
+  const [newLabel, setNewLabel] = useState('');
+  const [newPromptText, setNewPromptText] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editPromptText, setEditPromptText] = useState('');
+
+  const handleAdd = () => {
+    const label = newLabel.trim();
+    const prompt = newPromptText.trim();
+    if (!label || !prompt) return;
+    addPrompt(label, prompt);
+    setNewLabel('');
+    setNewPromptText('');
+  };
+
+  const startEdit = (id: string, label: string, prompt: string) => {
+    setEditingId(id);
+    setEditLabel(label);
+    setEditPromptText(prompt);
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    const label = editLabel.trim();
+    const prompt = editPromptText.trim();
+    if (!label || !prompt) return;
+    updatePrompt(editingId, label, prompt);
+    setEditingId(null);
+  };
+
+  return (
+    <div className="modal-section">
+      <h3 className="modal-section-title">Quick Prompts</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+        Tap a quick prompt above the chat input to send it instantly.
+      </p>
+
+      {prompts.map((qp) =>
+        editingId === qp.id ? (
+          <div key={qp.id} style={{ marginBottom: 12, padding: 8, background: 'var(--bg-input)', borderRadius: 4 }}>
+            <input
+              className="modal-input"
+              value={editLabel}
+              onChange={(e) => setEditLabel(e.target.value)}
+              placeholder="Label"
+              style={{ marginBottom: 8 }}
+            />
+            <textarea
+              className="modal-input"
+              value={editPromptText}
+              onChange={(e) => setEditPromptText(e.target.value)}
+              placeholder="Prompt text"
+              style={{ height: 64, resize: 'vertical', fontFamily: 'inherit', marginBottom: 8 }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="show-hide-btn" onClick={saveEdit} style={{ height: 32 }}>Save</button>
+              <button className="show-hide-btn" onClick={() => setEditingId(null)} style={{ height: 32 }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div key={qp.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14 }}>{qp.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {qp.prompt}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button className="show-hide-btn" onClick={() => startEdit(qp.id, qp.label, qp.prompt)} style={{ height: 32 }}>Edit</button>
+              <button className="show-hide-btn" onClick={() => removePrompt(qp.id)} style={{ color: '#ef4444', height: 32 }}>Delete</button>
+            </div>
+          </div>
+        )
+      )}
+
+      {prompts.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+          No quick prompts yet.
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        <label className="modal-label">Label</label>
+        <input
+          className="modal-input"
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          placeholder='e.g. "Hindsight Refactor"'
+        />
+        <label className="modal-label">Prompt</label>
+        <textarea
+          className="modal-input"
+          value={newPromptText}
+          onChange={(e) => setNewPromptText(e.target.value)}
+          placeholder="e.g. In hindsight, would you have built this differently?"
+          style={{ height: 64, resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <button
+          className="show-hide-btn"
+          onClick={handleAdd}
+          disabled={!newLabel.trim() || !newPromptText.trim()}
+          style={{ marginTop: 4 }}
+        >
+          + Add Prompt
         </button>
       </div>
     </div>

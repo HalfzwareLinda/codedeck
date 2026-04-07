@@ -4,12 +4,14 @@ import { useSessionStore } from './stores/sessionStore';
 import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { parsePublicKey } from './services/nostrService';
+import { useQuickPromptStore } from './stores/quickPromptStore';
 import { initNotifications, setAppHidden } from './services/notificationService';
 import { hasActiveSubscriptions } from './services/bridgeService';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { invoke } from '@tauri-apps/api/core';
 import * as nip19 from 'nostr-tools/nip19';
 import type { RemoteMachine } from './types';
+import { SpeechProvider } from './contexts/SpeechContext';
 import Sidebar from './components/Sidebar';
 import MainPanel from './components/MainPanel';
 import SettingsModal from './components/SettingsModal';
@@ -77,6 +79,7 @@ export default function App() {
     sessionActions.loadConfig();
     sessionActions.initEventListeners();
     initNotifications();
+    useQuickPromptStore.getState().loadPersisted();
 
     // Load persisted DMs first (includes Nostr private key), then init bridge
     useDmStore.getState().loadPersisted().then(() => {
@@ -132,6 +135,9 @@ export default function App() {
       document.documentElement.style.setProperty(
         '--keyboard-offset', `${Math.max(0, offset)}px`
       );
+      document.documentElement.style.setProperty(
+        '--app-height', `${vv.height}px`
+      );
     };
     vv.addEventListener('resize', onResize);
     vv.addEventListener('scroll', onResize);
@@ -143,6 +149,7 @@ export default function App() {
   }, []);
 
   return (
+    <SpeechProvider>
     <div style={{
       display: 'flex',
       height: '100%',
@@ -191,5 +198,6 @@ export default function App() {
       {newSessionOpen && <NewSessionModal />}
       </ErrorBoundary>
     </div>
+    </SpeechProvider>
   );
 }
