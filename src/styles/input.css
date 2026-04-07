@@ -158,6 +158,29 @@
   animation: mic-pulse 1.5s ease-in-out infinite;
 }
 
+/* === Stop/interrupt button === */
+
+.stop-btn {
+  height: 32px;
+  min-width: 60px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.stop-btn:hover {
+  color: var(--error, #ef4444);
+  border-color: var(--error, #ef4444);
+}
+
 /* mic-pulse keyframe moved to global.css */
 
 /* === Input bar wrapper (accommodates preview strip above) === */

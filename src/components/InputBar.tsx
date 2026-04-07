@@ -27,6 +27,18 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isTouchDevice = useMediaQuery('(pointer: coarse)');
+  const cancelAgent = useSessionStore((s) => s.cancelAgent);
+  const isRemote = useSessionStore((s) => {
+    for (const sessions of Object.values(s.remoteSessions)) {
+      if (sessions?.some(rs => rs.id === sessionId)) return true;
+    }
+    return false;
+  });
+  const sessionState = useSessionStore((s) => {
+    const local = s.sessions.find(sess => sess.id === sessionId);
+    return local?.state ?? null;
+  });
+  const showStopButton = isRemote || sessionState === 'running' || sessionState === 'waiting_permission';
 
   // Auto-focus textarea when plan revision is requested
   useEffect(() => {
@@ -280,6 +292,17 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
         />
 
         <div className="right-controls">
+          {showStopButton && (
+            <button
+              className="stop-btn"
+              onClick={() => cancelAgent(sessionId)}
+              aria-label={isRemote ? 'Interrupt session' : 'Cancel agent'}
+              title={isRemote ? 'Interrupt session' : 'Cancel agent'}
+              type="button"
+            >
+              &#x25A0;
+            </button>
+          )}
           {sttAvailable && (
             <button
               className={`mic-btn ${isListening ? 'mic-active' : ''}`}

@@ -57,12 +57,9 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const sessionId = session?.id ?? remoteSession?.id;
   const tokenUsage = useSessionStore((s) => sessionId ? s.tokenUsage[sessionId] : undefined);
-  const cancelAgent = useSessionStore((s) => s.cancelAgent);
   const showModeBadge = useSessionStore((s) => s.config.show_mode_badge);
   const isTouchDevice = useMediaQuery('(pointer: coarse)');
   const attention = useAttentionDirection(sessionId);
-
-  const isRunning = session?.state === 'running' || session?.state === 'waiting_permission';
 
   return (
     <div className="session-header">
@@ -95,15 +92,6 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
               {session.group}:{session.workspace_path} · {session.branch}
             </div>
           </div>
-          {isRunning && (
-            <button
-              className="header-btn header-cancel"
-              onClick={() => cancelAgent(session.id)}
-              title="Cancel agent"
-            >
-              &#x25A0;
-            </button>
-          )}
           {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
             <div className="header-tokens">{formatTokens(tokenUsage)}</div>
           )}
@@ -119,13 +107,6 @@ export default function SessionHeader({ session, remoteSession, isWide }: { sess
             </div>
             <div className="header-subtitle">{remoteSession.project || remoteSession.cwd}</div>
           </div>
-          <button
-            className="header-btn header-cancel"
-            onClick={() => cancelAgent(remoteSession.id)}
-            title="Interrupt session"
-          >
-            &#x25A0;
-          </button>
           {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
             <div className="header-tokens">{formatTokens(tokenUsage)}</div>
           )}
