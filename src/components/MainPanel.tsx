@@ -6,6 +6,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useSwipeToNavigate } from '../hooks/useSwipeToNavigate';
 import { useOrderedSessionIds } from '../hooks/useOrderedSessionIds';
 import { useVoiceMode } from '../hooks/useVoiceMode';
+import { cycleIndex } from '../utils/cycleIndex';
 import { RemoteSessionInfo } from '../types';
 import SessionHeader from './SessionHeader';
 import OutputStream from './OutputStream';
@@ -45,11 +46,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
     const currentIndex = orderedIds.indexOf(activeSessionId);
     if (currentIndex === -1) return;
 
-    const newIndex = direction === 'next'
-      ? (currentIndex + 1) % orderedIds.length
-      : (currentIndex - 1 + orderedIds.length) % orderedIds.length;
-
-    const newSessionId = orderedIds[newIndex];
+    const newSessionId = orderedIds[cycleIndex(currentIndex, orderedIds.length, direction === 'next' ? 1 : -1)];
     setActiveSession(newSessionId);
     setPanelMode('session');
 
@@ -74,11 +71,7 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
     const currentIndex = orderedConvIds.indexOf(activeConversationId);
     if (currentIndex === -1) return;
 
-    const newIndex = direction === 'next'
-      ? (currentIndex + 1) % orderedConvIds.length
-      : (currentIndex - 1 + orderedConvIds.length) % orderedConvIds.length;
-
-    setActiveConversation(orderedConvIds[newIndex]);
+    setActiveConversation(orderedConvIds[cycleIndex(currentIndex, orderedConvIds.length, direction === 'next' ? 1 : -1)]);
   }, [orderedConvIds, activeConversationId, setActiveConversation]);
 
   const { containerRef, touchHandlers } = useSwipeToNavigate({

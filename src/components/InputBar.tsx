@@ -4,6 +4,7 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useSpeechContext } from '../contexts/SpeechContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { processImageFile } from '../utils/imageUtils';
+import { cycleIndex } from '../utils/cycleIndex';
 import QuickPromptBar from './QuickPromptBar';
 import '../styles/input.css';
 
@@ -60,10 +61,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
   });
 
   // Check if the bridge machine owning this session is disconnected.
-  const bridgeOffline = useSessionStore((s) => {
-    const machine = s.getMachineForSession(sessionId);
-    return machine ? !machine.connected : false;
-  });
+  const bridgeOffline = useSessionStore((s) => s.isBridgeOffline(sessionId));
 
   // Revoke blob URL on cleanup or when image changes
   useEffect(() => {
@@ -203,7 +201,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
     if (modeCooldown) return;
     const current = mode ?? 'plan';
     const idx = MODE_CYCLE.indexOf(current);
-    const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
+    const next = MODE_CYCLE[cycleIndex(idx, MODE_CYCLE.length, 1)];
     setMode(sessionId, next);
     setModeCooldown(true);
     setTimeout(() => setModeCooldown(false), 600);
@@ -212,7 +210,7 @@ export default function InputBar({ sessionId, mode, effort }: { sessionId: strin
   const cycleEffort = () => {
     if (effortCooldown || !effort) return;
     const idx = EFFORT_CYCLE.indexOf(effort);
-    const next = EFFORT_CYCLE[(idx + 1) % EFFORT_CYCLE.length];
+    const next = EFFORT_CYCLE[cycleIndex(idx, EFFORT_CYCLE.length, 1)];
     setEffort(sessionId, next);
     setEffortCooldown(true);
     setTimeout(() => setEffortCooldown(false), 600);

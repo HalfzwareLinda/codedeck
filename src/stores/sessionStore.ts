@@ -75,6 +75,7 @@ interface SessionStore {
   removeMachine: (pubkeyHex: string) => void;
   initBridgeService: (privateKeyHex: string) => Promise<void>;
   isRemoteSession: (sessionId: string) => boolean;
+  isBridgeOffline: (sessionId: string) => boolean;
   getMachineForSession: (sessionId: string) => RemoteMachine | null;
   requestSessionHistory: (sessionId: string) => Promise<void>;
   requestRefreshSessions: () => void;
@@ -1336,6 +1337,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (sessions?.some(s => s.id === sessionId)) return true;
     }
     return false;
+  },
+
+  isBridgeOffline: (sessionId) => {
+    const machine = get().getMachineForSession(sessionId);
+    return machine ? !machine.connected : false;
   },
 
   getMachineForSession: (sessionId) => {

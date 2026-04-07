@@ -123,33 +123,31 @@
   white-space: nowrap;
 }
 
-.session-card-offline {
-  font-size: 10px;
-  color: var(--error, #ef4444);
-  background: rgba(239, 68, 68, 0.1);
+.session-card-badge {
+  font-size: 9px;
+  font-weight: 700;
   padding: 0 4px;
   border-radius: 3px;
   flex-shrink: 0;
 }
 
-.session-card-bypass {
-  font-size: 9px;
-  font-weight: 700;
+.session-card-badge--offline {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--error, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.session-card-badge--yolo {
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: 2px;
   padding: 0 3px;
-  flex-shrink: 0;
 }
 
-.session-card-committed {
-  font-size: 9px;
-  font-weight: 700;
+.session-card-badge--committed {
   color: #22c55e;
   background: rgba(34, 197, 94, 0.12);
-  padding: 0 4px;
-  border-radius: 3px;
-  flex-shrink: 0;
 }
 
 .status-dot {

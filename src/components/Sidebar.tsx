@@ -117,9 +117,9 @@ function RemoteSessionCard({ session, isSelected, machineConnected }: { session:
           <div className="session-card-name">{session.title || session.slug}</div>
           <div className="session-card-path">
             <span className="session-card-path-text">{session.project}</span>
-            {(noTerminal || bridgeOffline) && <span className="session-card-offline">offline</span>}
-            {showModeBadge && session.permissionMode === 'default' && <span className="session-card-bypass">YOLO</span>}
-            {showCommitBadge && session.committed && <span className="session-card-committed">committed</span>}
+            {(noTerminal || bridgeOffline) && <span className="session-card-badge session-card-badge--offline">offline</span>}
+            {showModeBadge && session.permissionMode === 'default' && <span className="session-card-badge session-card-badge--yolo">YOLO</span>}
+            {showCommitBadge && session.committed && <span className="session-card-badge session-card-badge--committed">committed</span>}
             <span className="session-card-time">{relativeTime(session.lastActivity)}</span>
           </div>
         </div>

@@ -12,6 +12,17 @@ import * as nip19 from 'nostr-tools/nip19';
 import { DEFAULT_BLOSSOM_SERVER } from '../utils/blossomUpload';
 import '../styles/modal.css';
 
+function ToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="modal-toggle-row">
+      <span style={{ fontSize: 14 }}>{label}</span>
+      <button className={`toggle-switch ${value ? 'on' : 'off'}`} onClick={() => onChange(!value)}>
+        <div className="toggle-knob" />
+      </button>
+    </div>
+  );
+}
+
 export default function SettingsModal() {
   const config = useSessionStore((s) => s.config);
   const updateConfig = useSessionStore((s) => s.updateConfig);
@@ -280,55 +291,11 @@ export default function SettingsModal() {
             <option value="claude-opus-4-6">Claude Opus 4.6</option>
           </select>
 
-          <div className="modal-toggle-row">
-            <span style={{ fontSize: 14 }}>Auto-push on complete</span>
-            <button
-              className={`toggle-switch ${local.auto_push_on_complete ? 'on' : 'off'}`}
-              onClick={() => setLocal({ ...local, auto_push_on_complete: !local.auto_push_on_complete })}
-            >
-              <div className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="modal-toggle-row">
-            <span style={{ fontSize: 14 }}>Notifications</span>
-            <button
-              className={`toggle-switch ${local.notifications_enabled ? 'on' : 'off'}`}
-              onClick={() => setLocal({ ...local, notifications_enabled: !local.notifications_enabled })}
-            >
-              <div className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="modal-toggle-row">
-            <span style={{ fontSize: 14 }}>Show session metadata</span>
-            <button
-              className={`toggle-switch ${local.show_session_metadata ? 'on' : 'off'}`}
-              onClick={() => setLocal({ ...local, show_session_metadata: !local.show_session_metadata })}
-            >
-              <div className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="modal-toggle-row">
-            <span style={{ fontSize: 14 }}>Show mode badge</span>
-            <button
-              className={`toggle-switch ${local.show_mode_badge ? 'on' : 'off'}`}
-              onClick={() => setLocal({ ...local, show_mode_badge: !local.show_mode_badge })}
-            >
-              <div className="toggle-knob" />
-            </button>
-          </div>
-
-          <div className="modal-toggle-row">
-            <span style={{ fontSize: 14 }}>Show commit badge</span>
-            <button
-              className={`toggle-switch ${local.show_commit_badge ? 'on' : 'off'}`}
-              onClick={() => setLocal({ ...local, show_commit_badge: !local.show_commit_badge })}
-            >
-              <div className="toggle-knob" />
-            </button>
-          </div>
+          <ToggleRow label="Auto-push on complete" value={local.auto_push_on_complete} onChange={v => setLocal({ ...local, auto_push_on_complete: v })} />
+          <ToggleRow label="Notifications" value={local.notifications_enabled} onChange={v => setLocal({ ...local, notifications_enabled: v })} />
+          <ToggleRow label="Show session metadata" value={local.show_session_metadata} onChange={v => setLocal({ ...local, show_session_metadata: v })} />
+          <ToggleRow label="Show mode badge" value={local.show_mode_badge} onChange={v => setLocal({ ...local, show_mode_badge: v })} />
+          <ToggleRow label="Show commit badge" value={local.show_commit_badge} onChange={v => setLocal({ ...local, show_commit_badge: v })} />
         </div>
 
         {/* Quick Prompts */}

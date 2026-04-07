@@ -193,12 +193,14 @@ function PlanApprovalEntry({ sessionId, answered, cardId, hasPlan }: { sessionId
   );
 }
 
-function PlanConfirmationEntry({
-  item,
+function CollapsibleEntry({
+  summary,
+  content,
   expanded,
   onToggle,
 }: {
-  item: PlanConfirmationDisplay;
+  summary: string;
+  content: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -208,40 +210,12 @@ function PlanConfirmationEntry({
         <span className={`tool-group-chevron${expanded ? ' tool-group-chevron-open' : ''}`}>
           &#x25B8;
         </span>
-        <span className="tool-group-summary">Plan approved</span>
+        <span className="tool-group-summary">{summary}</span>
       </button>
       {expanded && (
         <div className="tool-group-body">
           <div className="assistant-message">
-            <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{item.entry.content}</Markdown>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CollapsibleMessageEntry({
-  item,
-  expanded,
-  onToggle,
-}: {
-  item: CollapsibleMessageDisplay;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="tool-group">
-      <button className="tool-group-header" onClick={onToggle} aria-expanded={expanded}>
-        <span className={`tool-group-chevron${expanded ? ' tool-group-chevron-open' : ''}`}>
-          &#x25B8;
-        </span>
-        <span className="tool-group-summary">{item.summary}</span>
-      </button>
-      {expanded && (
-        <div className="tool-group-body">
-          <div className="assistant-message">
-            <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{item.entry.content}</Markdown>
+            <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{content}</Markdown>
           </div>
         </div>
       )}
@@ -646,7 +620,7 @@ function DisplayItem({
     case 'plan_approval':
       return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} hasPlan={(item as PlanApprovalDisplay).entry.metadata?.has_plan !== false} />;
     case 'plan_confirmation':
-      return <PlanConfirmationEntry item={item as PlanConfirmationDisplay} expanded={expanded} onToggle={onToggle} />;
+      return <CollapsibleEntry summary="Plan approved" content={(item as PlanConfirmationDisplay).entry.content} expanded={expanded} onToggle={onToggle} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
     case 'question_group':
@@ -654,7 +628,7 @@ function DisplayItem({
     case 'permission_request':
       return <PermissionRequestEntry item={item} sessionId={sessionId} />;
     case 'collapsible_message':
-      return <CollapsibleMessageEntry item={item as CollapsibleMessageDisplay} expanded={expanded} onToggle={onToggle} />;
+      return <CollapsibleEntry summary={(item as CollapsibleMessageDisplay).summary} content={(item as CollapsibleMessageDisplay).entry.content} expanded={expanded} onToggle={onToggle} />;
     default:
       return null;
   }
