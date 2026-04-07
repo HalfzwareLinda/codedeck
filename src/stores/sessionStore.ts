@@ -115,6 +115,13 @@ const defaultConfig: AppConfig = {
   show_commit_badge: true,
 };
 
+const CONFIG_PERSIST_KEY = 'codedeck_config';
+
+/** Strip secret fields before persisting to localStorage / Tauri store. */
+function stripSecrets(config: AppConfig): AppConfig {
+  return { ...config, anthropic_api_key: null, github_pat: null };
+}
+
 // --- History chunk tracking (module-level, not in store state) ---
 
 const HISTORY_IDLE_TIMEOUT_MS = 10_000;
@@ -438,7 +445,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   loadConfig: async () => {
     const config = await api.getConfig();
-    if (config) set({ config });
+    if (config) {
+      set({ config });
+      return;
+    }
+    // Browser-mode fallback: restore non-secret fields from persistStore.
+    const saved = await persistGet<AppConfig>(CONFIG_PERSIST_KEY);
+    if (saved) {
+      set({
+        config: {
+          ...defaultConfig,
+          ...saved,
+          anthropic_api_key: null,
+          github_pat: null,
+        },
+      });
+    }
   },
 
   createSession: async (name, group, repoUrl, branch) => {
@@ -666,6 +688,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   updateConfig: async (config) => {
     set({ config });
     if (isTauri()) await api.updateConfig(config);
+    persistSet(CONFIG_PERSIST_KEY, stripSecrets(config));
   },
 
   initEventListeners: async () => {
