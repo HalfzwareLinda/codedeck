@@ -111,6 +111,7 @@ const defaultConfig: AppConfig = {
   model: 'claude-opus-4-6',
   show_session_metadata: true,
   show_mode_badge: true,
+  show_commit_badge: true,
 };
 
 // --- History chunk tracking (module-level, not in store state) ---
@@ -799,7 +800,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               }
               if (prev.title === incoming.title && prev.lastActivity === incoming.lastActivity
                   && prev.lineCount === incoming.lineCount && prev.project === incoming.project
-                  && prev.cwd === incoming.cwd) {
+                  && prev.cwd === incoming.cwd && prev.committed === incoming.committed) {
                 return prev; // unchanged — keep same reference
               }
               return { ...prev, ...incoming, title: incoming.title ?? prev.title }; // merge updates, preserve non-null title

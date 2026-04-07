@@ -34,6 +34,7 @@ export default function SettingsModal() {
     model: 'claude-opus-4-6',
     show_session_metadata: true,
     show_mode_badge: true,
+    show_commit_badge: true,
   });
   const [showApiKey, setShowApiKey] = useState(false);
   const [showPat, setShowPat] = useState(false);
@@ -312,6 +313,16 @@ export default function SettingsModal() {
             <button
               className={`toggle-switch ${local.show_mode_badge ? 'on' : 'off'}`}
               onClick={() => setLocal({ ...local, show_mode_badge: !local.show_mode_badge })}
+            >
+              <div className="toggle-knob" />
+            </button>
+          </div>
+
+          <div className="modal-toggle-row">
+            <span style={{ fontSize: 14 }}>Show commit badge</span>
+            <button
+              className={`toggle-switch ${local.show_commit_badge ? 'on' : 'off'}`}
+              onClick={() => setLocal({ ...local, show_commit_badge: !local.show_commit_badge })}
             >
               <div className="toggle-knob" />
             </button>

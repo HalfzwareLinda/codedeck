@@ -55,6 +55,7 @@ export interface AppConfig {
   model: string;
   show_session_metadata: boolean;
   show_mode_badge: boolean;
+  show_commit_badge: boolean;
 }
 
 // --- Nostr / DM Types ---
@@ -112,6 +113,7 @@ export interface RemoteSessionInfo {
   hasTerminal?: boolean;
   permissionMode?: AgentMode;
   effortLevel?: EffortLevel;
+  committed?: boolean;
 }
 
 export interface RemoteOutputEntry {
