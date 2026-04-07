@@ -1,8 +1,9 @@
 /* === DM Section (pinned to sidebar bottom) === */
 
 .dm-section {
-  flex-shrink: 0;
-  height: 288px; /* heading (~32px) + 4 tiles (64px each) */
+  flex-shrink: 1;
+  max-height: 288px; /* heading (~32px) + 4 tiles (64px each) */
+  min-height: 32px;  /* always show the DMS header row */
   border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
