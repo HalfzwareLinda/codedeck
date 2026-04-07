@@ -14,7 +14,7 @@
 import { createContext, useContext, useRef, useCallback, type ReactNode } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
-interface SpeechContextValue {
+export interface SpeechContextValue {
   available: boolean;
   isListening: boolean;
   interimTranscript: string;

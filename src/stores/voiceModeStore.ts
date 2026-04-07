@@ -25,8 +25,12 @@ const DEFAULTS: VoiceModeSettings = {
   autoListenAfterRead: false,
 };
 
-function persist(settings: VoiceModeSettings) {
-  persistSet(PERSIST_KEY, settings);
+function persistCurrent(state: VoiceModeStore) {
+  persistSet(PERSIST_KEY, {
+    enabled: state.enabled,
+    speechRate: state.speechRate,
+    autoListenAfterRead: state.autoListenAfterRead,
+  });
 }
 
 export const useVoiceModeStore = create<VoiceModeStore>((set, get) => ({
@@ -36,21 +40,18 @@ export const useVoiceModeStore = create<VoiceModeStore>((set, get) => ({
 
   setEnabled: (enabled) => {
     set({ enabled });
-    const { speechRate, autoListenAfterRead } = get();
-    persist({ enabled, speechRate, autoListenAfterRead });
+    persistCurrent(get());
   },
 
   setSpeechRate: (speechRate) => {
     const clamped = Math.max(0.8, Math.min(1.5, speechRate));
     set({ speechRate: clamped });
-    const { enabled, autoListenAfterRead } = get();
-    persist({ enabled, speechRate: clamped, autoListenAfterRead });
+    persistCurrent(get());
   },
 
   setAutoListenAfterRead: (autoListenAfterRead) => {
     set({ autoListenAfterRead });
-    const { enabled, speechRate } = get();
-    persist({ enabled, speechRate, autoListenAfterRead });
+    persistCurrent(get());
   },
 
   loadPersisted: async () => {

@@ -25,11 +25,19 @@ export type VoiceAction =
   | { type: 'repeat' }
   | { type: 'unrecognized' };
 
-// Number words → digits
-const WORD_NUMBERS: Record<string, string> = {
-  one: '1', two: '2', three: '3', four: '4', five: '5',
-  first: '1', second: '2', third: '3', fourth: '4', fifth: '5',
-};
+// Number words → digits (pre-compiled patterns for parseQuestion)
+const WORD_NUMBERS: Array<{ pattern: RegExp; digit: string }> = [
+  { pattern: /\b(one|1)\b/, digit: '1' },
+  { pattern: /\b(two|2)\b/, digit: '2' },
+  { pattern: /\b(three|3)\b/, digit: '3' },
+  { pattern: /\b(four|4)\b/, digit: '4' },
+  { pattern: /\b(five|5)\b/, digit: '5' },
+  { pattern: /\b(first)\b/, digit: '1' },
+  { pattern: /\b(second)\b/, digit: '2' },
+  { pattern: /\b(third)\b/, digit: '3' },
+  { pattern: /\b(fourth)\b/, digit: '4' },
+  { pattern: /\b(fifth)\b/, digit: '5' },
+];
 
 function normalize(transcript: string): string {
   return transcript.toLowerCase().trim();
@@ -97,8 +105,8 @@ function parseQuestion(t: string): VoiceAction {
   }
 
   // Match number words and digits
-  for (const [word, digit] of Object.entries(WORD_NUMBERS)) {
-    if (new RegExp(`\\b${word}\\b`).test(t) || new RegExp(`\\b${digit}\\b`).test(t)) {
+  for (const { pattern, digit } of WORD_NUMBERS) {
+    if (pattern.test(t)) {
       return { type: 'keypress', key: digit, label: `Option ${digit}` };
     }
   }

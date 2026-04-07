@@ -5,6 +5,7 @@ import { useDmStore } from './stores/dmStore';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { parsePublicKey } from './services/nostrService';
 import { useQuickPromptStore } from './stores/quickPromptStore';
+import { useVoiceModeStore } from './stores/voiceModeStore';
 import { initNotifications, setAppHidden } from './services/notificationService';
 import { hasActiveSubscriptions } from './services/bridgeService';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
@@ -80,6 +81,7 @@ export default function App() {
     sessionActions.initEventListeners();
     initNotifications();
     useQuickPromptStore.getState().loadPersisted();
+    useVoiceModeStore.getState().loadPersisted();
 
     // Load persisted DMs first (includes Nostr private key), then init bridge
     useDmStore.getState().loadPersisted().then(() => {

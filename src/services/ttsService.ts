@@ -22,6 +22,7 @@ interface TtsState {
 
 type StateListener = (state: TtsState) => void;
 type EndListener = (utteranceId: string) => void;
+type StartListener = (utterance: TtsUtterance) => void;
 
 // --- Module state ---
 
@@ -40,6 +41,7 @@ let isCardRespondedCheck: ((sessionId: string, cardId: string) => boolean) | nul
 
 const stateListeners = new Set<StateListener>();
 const endListeners = new Set<EndListener>();
+const startListeners = new Set<StartListener>();
 
 // Tauri plugin imports (lazy-loaded)
 let pluginSpeak: ((opts: Record<string, unknown>) => Promise<void>) | null = null;
@@ -62,6 +64,10 @@ function notifyState() {
 
 function notifyEnd(id: string) {
   endListeners.forEach((cb) => cb(id));
+}
+
+function notifyStart(utterance: TtsUtterance) {
+  startListeners.forEach((cb) => cb(utterance));
 }
 
 // --- Browser fallback (Web Speech API, for dev mode) ---
@@ -103,6 +109,7 @@ async function processNext() {
     }
 
     currentUtterance = next;
+    notifyStart(next);
     notifyState();
 
     try {
@@ -212,30 +219,29 @@ export function speak(utterance: TtsUtterance): void {
   processNext();
 }
 
+/** Stop the currently-speaking utterance, if any. Returns true if one was stopped. */
+function stopCurrentUtterance(): boolean {
+  if (!currentUtterance) return false;
+  const id = currentUtterance.id;
+  currentUtterance = null;
+  if (pluginStop) pluginStop().catch(() => {});
+  else browserStop();
+  notifyEnd(id);
+  return true;
+}
+
 export function cancelAll(): void {
   queue.length = 0;
-  if (currentUtterance) {
-    const id = currentUtterance.id;
-    currentUtterance = null;
-    if (pluginStop) pluginStop().catch(() => {});
-    else browserStop();
-    notifyState();
-    notifyEnd(id);
-  }
+  stopCurrentUtterance();
+  notifyState();
 }
 
 export function cancelForSession(sessionId: string): void {
-  // Remove queued items for this session
   for (let i = queue.length - 1; i >= 0; i--) {
     if (queue[i].sessionId === sessionId) queue.splice(i, 1);
   }
-  // Cancel current if it belongs to this session
   if (currentUtterance?.sessionId === sessionId) {
-    const id = currentUtterance.id;
-    currentUtterance = null;
-    if (pluginStop) pluginStop().catch(() => {});
-    else browserStop();
-    notifyEnd(id);
+    stopCurrentUtterance();
   }
   notifyState();
 }
@@ -262,10 +268,16 @@ export function onUtteranceEnd(cb: EndListener): () => void {
   return () => endListeners.delete(cb);
 }
 
+export function onUtteranceStart(cb: StartListener): () => void {
+  startListeners.add(cb);
+  return () => startListeners.delete(cb);
+}
+
 export function cleanup(): void {
   cancelAll();
   pluginUnlistenFinish?.();
   pluginUnlistenCancel?.();
   stateListeners.clear();
   endListeners.clear();
+  startListeners.clear();
 }
