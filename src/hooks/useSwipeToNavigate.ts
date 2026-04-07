@@ -14,8 +14,10 @@ export function useSwipeToNavigate(options: {
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   enabled: boolean;
+  canSwipeLeft?: boolean;
+  canSwipeRight?: boolean;
 }) {
-  const { onSwipeLeft, onSwipeRight, enabled } = options;
+  const { onSwipeLeft, onSwipeRight, enabled, canSwipeLeft = true, canSwipeRight = true } = options;
 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
@@ -91,12 +93,16 @@ export function useSwipeToNavigate(options: {
       swipingRef.current = true;
     }
 
+    // Suppress drag visual at edges
+    if (dx < 0 && !canSwipeLeft) return;
+    if (dx > 0 && !canSwipeRight) return;
+
     currentXRef.current = dx;
     const el = containerRef.current;
     if (el) {
       el.style.transform = `translateX(${dx * DAMPEN}px)`;
     }
-  }, [enabled]);
+  }, [enabled, canSwipeLeft, canSwipeRight]);
 
   const onTouchEnd = useCallback(() => {
     if (!swipingRef.current) return;
@@ -112,20 +118,26 @@ export function useSwipeToNavigate(options: {
     }
 
     if (dx < -SWIPE_THRESHOLD) {
-      // Swipe left — next session: slide out left, switch, slide in from right
-      lastSwipeTimeRef.current = now;
-      slideOut(`-${window.innerWidth}px`, onSwipeLeft, `${window.innerWidth}px`);
+      if (!canSwipeLeft) {
+        snapBack();
+      } else {
+        lastSwipeTimeRef.current = now;
+        slideOut(`-${window.innerWidth}px`, onSwipeLeft, `${window.innerWidth}px`);
+      }
     } else if (dx > SWIPE_THRESHOLD) {
-      // Swipe right — previous session: slide out right, switch, slide in from left
-      lastSwipeTimeRef.current = now;
-      slideOut(`${window.innerWidth}px`, onSwipeRight, `-${window.innerWidth}px`);
+      if (!canSwipeRight) {
+        snapBack();
+      } else {
+        lastSwipeTimeRef.current = now;
+        slideOut(`${window.innerWidth}px`, onSwipeRight, `-${window.innerWidth}px`);
+      }
     } else {
       snapBack();
     }
 
     swipingRef.current = false;
     currentXRef.current = 0;
-  }, [onSwipeLeft, onSwipeRight, snapBack]);
+  }, [onSwipeLeft, onSwipeRight, snapBack, canSwipeLeft, canSwipeRight]);
 
   return {
     containerRef,

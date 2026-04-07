@@ -76,10 +76,27 @@ export default function MainPanel({ isWide }: { isWide: boolean }) {
     setActiveConversation(orderedConvIds[cycleIndex(currentIndex, orderedConvIds.length, direction === 'next' ? 1 : -1)]);
   }, [orderedConvIds, activeConversationId, setActiveConversation]);
 
+  // Whether swiping is possible in each direction (sessions have edges, DMs wrap)
+  const canSwipeLeft = useMemo(() => {
+    if (panelMode === 'dm') return true;
+    if (orderedIds.length <= 1 || !activeSessionId) return false;
+    const idx = orderedIds.indexOf(activeSessionId);
+    return idx !== -1 && idx < orderedIds.length - 1;
+  }, [panelMode, orderedIds, activeSessionId]);
+
+  const canSwipeRight = useMemo(() => {
+    if (panelMode === 'dm') return true;
+    if (orderedIds.length <= 1 || !activeSessionId) return false;
+    const idx = orderedIds.indexOf(activeSessionId);
+    return idx !== -1 && idx > 0;
+  }, [panelMode, orderedIds, activeSessionId]);
+
   const { containerRef, touchHandlers } = useSwipeToNavigate({
     onSwipeLeft: () => panelMode === 'dm' ? navigateConversation('next') : navigateSession('next'),
     onSwipeRight: () => panelMode === 'dm' ? navigateConversation('prev') : navigateSession('prev'),
     enabled: isTouchDevice && (panelMode === 'session' || panelMode === 'dm'),
+    canSwipeLeft,
+    canSwipeRight,
   });
 
   // Find remote session info if not a local session
