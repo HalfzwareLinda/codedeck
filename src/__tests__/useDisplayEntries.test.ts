@@ -37,9 +37,9 @@ function makeText(content: string, extra: Record<string, unknown> = {}): OutputE
 }
 
 describe('buildDisplayEntries', () => {
-  it('absorbs bridge-tagged agent_prompt entries into tool group', () => {
+  it('collapses text with display_hint collapse into tool group', () => {
     const outputs: OutputEntry[] = [
-      makeText('Let me explore the codebase.', { agent_prompt: true }),
+      makeText('Let me explore the codebase.', { display_hint: 'collapse' }),
       makeToolUse('Agent', 'Agent: Explore (Explore)'),
       makeToolResult('Found 5 files'),
     ];
@@ -52,13 +52,13 @@ describe('buildDisplayEntries', () => {
     }
   });
 
-  it('absorbs bridge-tagged subagent text into tool group', () => {
+  it('collapses subagent text with display_hint collapse into tool group', () => {
     const outputs: OutputEntry[] = [
       makeToolUse('Agent', 'Agent: Explore (Explore)'),
-      makeText('Searching the codebase...', { subagent: true }),
+      makeText('Searching the codebase...', { subagent: true, display_hint: 'collapse' }),
       makeToolUse('Read', 'Read: /src/main.ts'),
       makeToolResult('file contents'),
-      makeText('Here are my findings.', { subagent: true }),
+      makeText('Here are my findings.', { subagent: true, display_hint: 'collapse' }),
       makeToolResult('Agent result'),
     ];
 
@@ -67,7 +67,7 @@ describe('buildDisplayEntries', () => {
     expect(display[0].kind).toBe('tool_group');
   });
 
-  it('does NOT absorb plan text (special: plan)', () => {
+  it('does NOT collapse plan text (special: plan)', () => {
     const outputs: OutputEntry[] = [
       makeEntry({
         entry_type: 'message',
@@ -81,11 +81,11 @@ describe('buildDisplayEntries', () => {
     expect(display[0].kind).toBe('assistant_message');
   });
 
-  it('does NOT absorb final response text (last text before end)', () => {
+  it('shows text with display_hint show as individual message', () => {
     const outputs: OutputEntry[] = [
       makeToolUse('Bash', 'Bash: ls'),
       makeToolResult('file1.ts'),
-      makeText('Based on my analysis, the issue is in file1.ts.'),
+      makeText('Based on my analysis, the issue is in file1.ts.', { display_hint: 'show' }),
     ];
 
     const display = buildDisplayEntries(outputs);
@@ -94,7 +94,7 @@ describe('buildDisplayEntries', () => {
     expect(display[1].kind).toBe('assistant_message');
   });
 
-  it('backward compat: non-tagged text with tool lookahead still absorbed', () => {
+  it('defaults to show when no display_hint is set (old bridge compat)', () => {
     const outputs: OutputEntry[] = [
       makeText('Let me check that file.'),
       makeToolUse('Read', 'Read: /src/main.ts'),
@@ -103,19 +103,19 @@ describe('buildDisplayEntries', () => {
     ];
 
     const display = buildDisplayEntries(outputs);
-    expect(display).toHaveLength(2);
-    expect(display[0].kind).toBe('tool_group');
-    expect(display[1].kind).toBe('assistant_message');
-    if (display[1].kind === 'assistant_message') {
-      expect(display[1].entry.content).toBe('The file looks fine.');
-    }
+    // Without display_hint, both texts default to 'show' (not collapsed)
+    // text(show) + tool_use+tool_result(group) + text(show) = 3
+    expect(display).toHaveLength(3);
+    expect(display[0].kind).toBe('assistant_message');
+    expect(display[1].kind).toBe('tool_group');
+    expect(display[2].kind).toBe('assistant_message');
   });
 
   it('tool group summary counts only actual tool entries', () => {
     const outputs: OutputEntry[] = [
-      makeText('Exploring...', { agent_prompt: true }),
+      makeText('Exploring...', { display_hint: 'collapse' }),
       makeToolUse('Agent', 'Agent: Explore (Explore)'),
-      makeText('Sub-agent working...', { subagent: true }),
+      makeText('Sub-agent working...', { display_hint: 'collapse' }),
       makeToolUse('Read', 'Read: /src/main.ts'),
       makeToolResult('contents'),
     ];
@@ -127,9 +127,9 @@ describe('buildDisplayEntries', () => {
     }
   });
 
-  it('absorbs agent_prompt text even when no tool group is active yet', () => {
+  it('collapses display_hint collapse text even when no tool group is active yet', () => {
     const outputs: OutputEntry[] = [
-      makeText('I will investigate the IPC issue by searching...', { agent_prompt: true }),
+      makeText('I will investigate the IPC issue by searching...', { display_hint: 'collapse' }),
       makeToolUse('Agent', 'Agent: Explore IPC (Explore)'),
     ];
 
@@ -138,7 +138,7 @@ describe('buildDisplayEntries', () => {
     expect(display[0].kind).toBe('tool_group');
   });
 
-  it('does not absorb user messages even with subagent flag', () => {
+  it('does not collapse user messages', () => {
     const outputs: OutputEntry[] = [
       makeToolUse('Bash', 'Bash: ls'),
       makeEntry({
@@ -152,5 +152,26 @@ describe('buildDisplayEntries', () => {
     expect(display).toHaveLength(2);
     expect(display[0].kind).toBe('tool_group');
     expect(display[1].kind).toBe('user_message');
+  });
+
+  it('never collapses plan text even with display_hint collapse', () => {
+    const outputs: OutputEntry[] = [
+      makeText('I will now propose a plan.', { display_hint: 'collapse' }),
+      makeEntry({
+        entry_type: 'message',
+        content: '## Plan\n1. Step one\n2. Step two',
+        metadata: { role: 'assistant', special: 'plan', tool_use_id: 'plan_1', display_hint: 'collapse' },
+      }),
+      makeEntry({
+        entry_type: 'system',
+        content: 'Plan approval needed',
+        metadata: { special: 'plan_approval', tool_use_id: 'plan_1', has_plan: true },
+      }),
+    ];
+
+    const display = buildDisplayEntries(outputs);
+    // First text collapses into a tool group, plan shows individually, plan_approval shows individually
+    expect(display.some(d => d.kind === 'assistant_message')).toBe(true);
+    expect(display.some(d => d.kind === 'plan_approval')).toBe(true);
   });
 });
