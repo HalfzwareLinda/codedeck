@@ -98,15 +98,21 @@ function isToolEntry(entry: OutputEntry): boolean {
 }
 
 /** Check if a non-tool entry should be absorbed into the current tool group.
- *  Assistant text (no special metadata) followed by more tool entries stays in the group. */
+ *  Assistant text (no special metadata) followed by more tool entries stays in the group.
+ *  The lookahead skips over other absorbable text entries so consecutive assistant
+ *  messages (e.g. explanation + agent prompt) before a tool_use are all absorbed. */
 function isAbsorbableEntry(entry: OutputEntry, outputs: OutputEntry[], index: number): boolean {
   if (entry.metadata?.special) return false;
   if (entry.entry_type !== 'message' && entry.entry_type !== 'text') return false;
-  if (entry.metadata?.role !== 'assistant') return false;
+  if (entry.metadata?.role === 'user') return false;
 
   for (let j = index + 1; j < outputs.length; j++) {
-    if (isToolEntry(outputs[j])) return true;
-    if (outputs[j].entry_type === 'token_usage' || outputs[j].entry_type === 'system') continue;
+    const next = outputs[j];
+    if (isToolEntry(next)) return true;
+    if (next.entry_type === 'token_usage' || next.entry_type === 'system') continue;
+    // Skip other assistant text that could itself be absorbed
+    if ((next.entry_type === 'message' || next.entry_type === 'text') &&
+        !next.metadata?.special && next.metadata?.role !== 'user') continue;
     break;
   }
   return false;
@@ -214,8 +220,9 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
       continue;
     }
 
-    // Non-tool entry — absorb assistant text into tool group if more tools follow
-    if (currentToolGroup.length > 0 && isAbsorbableEntry(entry, outputs, i)) {
+    // Non-tool entry — absorb assistant text if more tools follow
+    if (isAbsorbableEntry(entry, outputs, i)) {
+      if (currentToolGroup.length === 0) toolGroupStart = i;
       currentToolGroup.push(entry);
       continue;
     }
