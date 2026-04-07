@@ -58,6 +58,14 @@ export interface AppConfig {
   show_commit_badge: boolean;
 }
 
+// --- Quick Prompts ---
+
+export interface QuickPrompt {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
 // --- Nostr / DM Types ---
 
 export type PanelMode = 'session' | 'dm';

@@ -1,3 +1,49 @@
+/* === Quick prompt pills === */
+
+.quick-prompt-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 16px;
+  overflow-x: auto;
+  border-top: 1px solid var(--border-medium);
+  scrollbar-width: none;
+}
+
+.quick-prompt-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-prompt-pill {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.quick-prompt-pill:hover {
+  background: var(--text-primary);
+  color: var(--bg-black);
+  border-color: var(--text-primary);
+}
+
+.quick-prompt-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.quick-prompt-pill:disabled:hover {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+}
+
 .input-no-terminal-notice {
   font-size: 11px;
   color: var(--error, #ef4444);
