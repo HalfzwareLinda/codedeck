@@ -361,55 +361,9 @@
   cursor: pointer;
 }
 
-.dm-input-bar {
-  display: flex;
-  gap: 8px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.dm-input-field {
-  flex: 1;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 14px;
-  padding: 8px 12px;
-  outline: none;
-  resize: none;
-  font-family: inherit;
-  min-height: 36px;
-  max-height: 120px;
-}
-
-.dm-input-field:focus {
-  border-color: var(--text-secondary);
-}
-
-.dm-input-field::placeholder {
-  color: var(--text-muted);
-}
-
-.dm-send-btn {
-  padding: 8px 16px;
-  background: var(--text-primary);
-  color: var(--bg-black);
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  flex-shrink: 0;
+/* DM input bar uses shared input.css classes — only override the attach button sizing */
+.dm-attach-btn {
+  width: 36px;
+  height: 36px;
   align-self: flex-end;
-}
-
-.dm-send-btn:hover {
-  opacity: 0.85;
-}
-
-.dm-send-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
