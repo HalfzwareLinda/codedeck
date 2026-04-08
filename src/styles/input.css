@@ -126,11 +126,11 @@
 
 .effort-btn {
   padding: 4px 4px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   border-radius: 4px;
   cursor: pointer;
-  height: 24px;
+  height: 32px;
   width: 100%;
   box-sizing: border-box;
 }
