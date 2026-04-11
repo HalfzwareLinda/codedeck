@@ -11,7 +11,6 @@ import {
   DisplayEntry,
   ToolGroupDisplay,
   PlanApprovalDisplay,
-  PlanConfirmationDisplay,
   QuestionDisplay,
   QuestionGroupDisplay,
   PermissionRequestDisplay,
@@ -206,35 +205,6 @@ function PlanApprovalEntry({ sessionId, answered, cardId, hasPlan }: { sessionId
   );
 }
 
-function CollapsibleEntry({
-  summary,
-  content,
-  expanded,
-  onToggle,
-}: {
-  summary: string;
-  content: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="tool-group">
-      <button className="tool-group-header" onClick={onToggle} aria-expanded={expanded}>
-        <span className={`tool-group-chevron${expanded ? ' tool-group-chevron-open' : ''}`}>
-          &#x25B8;
-        </span>
-        <span className="tool-group-summary">{summary}</span>
-      </button>
-      {expanded && (
-        <div className="tool-group-body">
-          <div className="assistant-message">
-            <Markdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins}>{content}</Markdown>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Heuristic: detect "type your own answer" style options.
  *  High-confidence phrases match at any position;
@@ -604,13 +574,6 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
   );
 }
 
-function PlanConfirmationEntry({ entry, expanded, onToggle }: { entry: OutputEntry; expanded: boolean; onToggle: () => void }) {
-  const toolUseId = entry.metadata?.tool_use_id as string | undefined;
-  const storedChoice = useSessionStore((s) => toolUseId ? s.planApprovalChoices.get(toolUseId) : undefined);
-  const summary = storedChoice ? (PLAN_APPROVAL_LABELS[storedChoice] ?? 'Plan approved') : 'Plan approved';
-  return <CollapsibleEntry summary={summary} content={entry.content} expanded={expanded} onToggle={onToggle} />;
-}
-
 // --- Display item dispatcher ---
 
 function DisplayItem({
@@ -639,8 +602,6 @@ function DisplayItem({
       return <DiffEntry entry={item.entry} />;
     case 'plan_approval':
       return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} hasPlan={(item as PlanApprovalDisplay).entry.metadata?.has_plan !== false} />;
-    case 'plan_confirmation':
-      return <PlanConfirmationEntry entry={(item as PlanConfirmationDisplay).entry} expanded={expanded} onToggle={onToggle} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
     case 'question_group':
@@ -678,7 +639,7 @@ function OutputRow({
   sessionId: string;
 }) {
   const item = display[index];
-  const expanded = (item.kind === 'tool_group' || item.kind === 'plan_confirmation') ? isExpanded(item.sourceStart) : false;
+  const expanded = item.kind === 'tool_group' ? isExpanded(item.sourceStart) : false;
   const onToggle = useCallback(() => toggleGroup(item.sourceStart), [toggleGroup, item.sourceStart]);
 
   return (

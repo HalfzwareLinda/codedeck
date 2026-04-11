@@ -73,11 +73,6 @@ export interface PermissionRequestDisplay extends DisplayEntryBase {
   requestId: string;
 }
 
-export interface PlanConfirmationDisplay extends DisplayEntryBase {
-  kind: 'plan_confirmation';
-  entry: OutputEntry;
-}
-
 export type DisplayEntry =
   | UserMessageDisplay
   | AssistantMessageDisplay
@@ -88,8 +83,7 @@ export type DisplayEntry =
   | PlanApprovalDisplay
   | QuestionDisplay
   | QuestionGroupDisplay
-  | PermissionRequestDisplay
-  | PlanConfirmationDisplay;
+  | PermissionRequestDisplay;
 
 const TOOL_ENTRY_TYPES = new Set(['tool_use', 'tool_result', 'action']);
 
@@ -140,8 +134,6 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
   let currentToolGroup: OutputEntry[] = [];
   let toolGroupStart = 0;
   const answeredMap = collectAnsweredToolUseIds(outputs);
-  let lastWasPlanApproval = false;
-
   // Question group buffering (groups consecutive ask_question entries with same tool_use_id)
   let pendingQuestions: QuestionGroupQuestion[] = [];
   let pendingQuestionToolUseId: string | null = null;
@@ -156,7 +148,6 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
         sourceStart: toolGroupStart,
       });
       currentToolGroup = [];
-      lastWasPlanApproval = false;
     }
   }
 
@@ -248,14 +239,9 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     }
 
     // Plan text entry (emitted by bridge before plan_approval with same tool_use_id).
-    // After approval: show as collapsible "Plan approved". Before: show as readable text.
+    // Always show as readable text — the plan stays visible after approval.
     if (special === 'plan') {
-      const isAnswered = toolUseId && answeredMap.has(toolUseId);
-      if (isAnswered) {
-        display.push({ kind: 'plan_confirmation', entry, sourceStart: i });
-      } else {
-        display.push({ kind: 'assistant_message', entry, sourceStart: i });
-      }
+      display.push({ kind: 'assistant_message', entry, sourceStart: i });
       continue;
     }
 
@@ -263,7 +249,6 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
       // Use short label instead of raw tool_result content for answered state
       const isAnswered = toolUseId ? answeredMap.has(toolUseId) : false;
       display.push({ kind: 'plan_approval', entry, sourceStart: i, answered: isAnswered ? 'Plan approved' : undefined });
-      lastWasPlanApproval = true;
       continue;
     }
     if (special === 'permission_request') {
@@ -281,32 +266,22 @@ function buildDisplayEntries(outputs: OutputEntry[]): DisplayEntry[] {
     switch (entry.entry_type) {
       case 'user_message':
         display.push({ kind: 'user_message', entry, sourceStart: i });
-        lastWasPlanApproval = false;
         break;
       case 'text':
       case 'message':
-        if (lastWasPlanApproval) {
-          display.push({ kind: 'plan_confirmation', entry, sourceStart: i });
-        } else {
-          display.push({ kind: 'assistant_message', entry, sourceStart: i });
-        }
-        lastWasPlanApproval = false;
+        display.push({ kind: 'assistant_message', entry, sourceStart: i });
         break;
       case 'error':
         display.push({ kind: 'error', entry, sourceStart: i });
-        lastWasPlanApproval = false;
         break;
       case 'diff':
         display.push({ kind: 'diff', entry, sourceStart: i });
-        lastWasPlanApproval = false;
         break;
       case 'system':
-        // Don't reset lastWasPlanApproval — token usage entries follow plan_approval
         display.push({ kind: 'system', entry, sourceStart: i });
         break;
       default:
         display.push({ kind: 'assistant_message', entry, sourceStart: i });
-        lastWasPlanApproval = false;
     }
   }
 
