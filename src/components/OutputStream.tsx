@@ -107,26 +107,37 @@ function SystemEntry({ entry }: { entry: OutputEntry }) {
   return <div className="output-system">{entry.content}</div>;
 }
 
+const PLAN_APPROVAL_LABELS: Record<string, string> = {
+  '1': 'Plan approved — Accept Edits',
+  '2': 'Plan approved — YOLO',
+  '3': 'Plan revised',
+};
+
 function PlanApprovalEntry({ sessionId, answered, cardId, hasPlan }: { sessionId: string; answered?: string; cardId?: string; hasPlan?: boolean }) {
   const sendKeypress = useSessionStore((s) => s.sendRemoteKeypress);
   const markResponded = useSessionStore((s) => s.markCardResponded);
   const setPendingRevision = useSessionStore((s) => s.setPendingRevision);
   const setModeLocal = useSessionStore((s) => s.setRemoteSessionModeLocal);
+  const setPlanApprovalChoice = useSessionStore((s) => s.setPlanApprovalChoice);
+  const storedChoice = useSessionStore((s) => cardId ? s.planApprovalChoices.get(cardId) : undefined);
   const responded = useSessionStore((s) => cardId ? s.isCardResponded(sessionId, cardId) : false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   if (answered) {
+    const label = storedChoice ? PLAN_APPROVAL_LABELS[storedChoice] : answered;
     return (
       <div className="plan-approval-bar plan-approval-answered">
-        <div className="plan-approval-label">{answered}</div>
+        <div className="plan-approval-label">{label}</div>
       </div>
     );
   }
   if (responded) {
+    const choice = selectedOption || storedChoice;
+    const label = choice === '3' ? 'Type your revision below'
+      : choice ? PLAN_APPROVAL_LABELS[choice]
+      : 'Response sent...';
     return (
       <div className="plan-approval-bar plan-approval-answered">
-        <div className="plan-approval-label">
-          {selectedOption === '3' ? 'Type your revision below' : 'Response sent...'}
-        </div>
+        <div className="plan-approval-label">{label}</div>
       </div>
     );
   }
@@ -161,7 +172,10 @@ function PlanApprovalEntry({ sessionId, answered, cardId, hasPlan }: { sessionId
   // With plan: full 3-option approval
   const respond = (key: string) => {
     setSelectedOption(key);
-    if (cardId) markResponded(sessionId, cardId);
+    if (cardId) {
+      markResponded(sessionId, cardId);
+      setPlanApprovalChoice(cardId, key);
+    }
     sendKeypress(sessionId, key, 'plan-approval');
     if (key === '1') {
       setModeLocal(sessionId, 'acceptEdits');
@@ -590,6 +604,13 @@ function PermissionRequestEntry({ item, sessionId }: { item: PermissionRequestDi
   );
 }
 
+function PlanConfirmationEntry({ entry, expanded, onToggle }: { entry: OutputEntry; expanded: boolean; onToggle: () => void }) {
+  const toolUseId = entry.metadata?.tool_use_id as string | undefined;
+  const storedChoice = useSessionStore((s) => toolUseId ? s.planApprovalChoices.get(toolUseId) : undefined);
+  const summary = storedChoice ? (PLAN_APPROVAL_LABELS[storedChoice] ?? 'Plan approved') : 'Plan approved';
+  return <CollapsibleEntry summary={summary} content={entry.content} expanded={expanded} onToggle={onToggle} />;
+}
+
 // --- Display item dispatcher ---
 
 function DisplayItem({
@@ -619,7 +640,7 @@ function DisplayItem({
     case 'plan_approval':
       return <PlanApprovalEntry sessionId={sessionId} answered={(item as PlanApprovalDisplay).answered} cardId={(item as PlanApprovalDisplay).entry.metadata?.tool_use_id as string | undefined} hasPlan={(item as PlanApprovalDisplay).entry.metadata?.has_plan !== false} />;
     case 'plan_confirmation':
-      return <CollapsibleEntry summary="Plan approved" content={(item as PlanConfirmationDisplay).entry.content} expanded={expanded} onToggle={onToggle} />;
+      return <PlanConfirmationEntry entry={(item as PlanConfirmationDisplay).entry} expanded={expanded} onToggle={onToggle} />;
     case 'question':
       return <QuestionEntry item={item} sessionId={sessionId} />;
     case 'question_group':

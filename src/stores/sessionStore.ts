@@ -91,6 +91,9 @@ interface SessionStore {
   respondedCards: Map<string, Set<string>>;
   markCardResponded: (sessionId: string, cardId: string) => void;
   isCardResponded: (sessionId: string, cardId: string) => boolean;
+  /** Tracks which plan approval option was selected per card (cardId → '1'|'2'|'3'). */
+  planApprovalChoices: Map<string, string>;
+  setPlanApprovalChoice: (cardId: string, key: string) => void;
   /** Session waiting for plan revision text input. Set when user taps "Revise plan". */
   pendingRevisionSession: string | null;
   setPendingRevision: (sessionId: string | null) => void;
@@ -314,6 +317,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionReadyTimestamps: new Map(),
   undoToast: null,
   respondedCards: new Map(),
+  planApprovalChoices: new Map(),
   pendingRevisionSession: null,
   pendingQuestions: new Map(),
 
@@ -337,6 +341,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   isCardResponded: (sessionId, cardId) => {
     return get().respondedCards.get(sessionId)?.has(cardId) ?? false;
   },
+
+  setPlanApprovalChoice: (cardId, key) => set((state) => {
+    const next = new Map(state.planApprovalChoices);
+    next.set(cardId, key);
+    return { planApprovalChoices: next };
+  }),
 
   setPendingRevision: (sessionId) => set({ pendingRevisionSession: sessionId }),
 
