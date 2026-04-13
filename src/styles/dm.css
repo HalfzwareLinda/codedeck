@@ -9,9 +9,12 @@
   flex-direction: column;
 }
 
-/* Collapse DM list when keyboard is open and user is in a session (not DM mode) */
-[data-keyboard-open="true"] .dm-section:not(.dm-section--active) .dm-section-list {
-  display: none;
+/* Collapse entire DM section when keyboard is open and user is in a session (not DM mode) */
+[data-keyboard-open="true"] .dm-section:not(.dm-section--active) {
+  max-height: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-top: none;
 }
 
 .dm-section-header {
@@ -366,8 +369,9 @@
   cursor: pointer;
 }
 
-/* DM input bar uses shared input.css classes — only override the attach button sizing */
-.dm-attach-btn {
+/* DM input bar uses shared input.css classes — only override the attach button sizing.
+   .input-bar qualifier needed to beat .attach-btn { width:100% } from input.css */
+.input-bar .dm-attach-btn {
   width: 36px;
   height: 36px;
   align-self: flex-end;

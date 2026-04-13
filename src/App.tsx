@@ -128,28 +128,77 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
-  // Track keyboard visibility via Visual Viewport API (fallback for Android WebView)
+  // Track keyboard visibility — handles both Tauri adjustResize (window shrinks)
+  // and browser overlay mode (visualViewport shrinks while window stays the same).
+  // Also uses focusin/focusout as fallback: on Android 11+ adjustResize is
+  // deprecated and viewport events may not fire in the WebView.
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const onResize = () => {
-      const offset = window.innerHeight - vv.height;
+    let fullHeight = window.innerHeight;
+    let focusOpen = false;   // tracks focus-based keyboard detection
+    let blurTimer: number;
+
+    const setKeyboard = (open: boolean) => {
+      document.documentElement.setAttribute('data-keyboard-open', String(open));
+    };
+
+    const update = () => {
+      const vvHeight = window.visualViewport?.height ?? window.innerHeight;
+      // Use the smaller value: covers both resize and overlay keyboard modes
+      const currentHeight = Math.min(window.innerHeight, vvHeight);
+
+      // Track max height (resets on keyboard close / orientation change)
+      if (currentHeight > fullHeight) fullHeight = currentHeight;
+
+      const offset = fullHeight - currentHeight;
       document.documentElement.style.setProperty(
         '--keyboard-offset', `${Math.max(0, offset)}px`
       );
       document.documentElement.style.setProperty(
-        '--app-height', `${vv.height}px`
+        '--app-height', `${currentHeight}px`
       );
-      document.documentElement.setAttribute(
-        'data-keyboard-open', String(offset > 50)
-      );
+      // Keyboard is open if viewport shrank OR an input is focused
+      setKeyboard(offset > 150 || focusOpen);
     };
-    vv.addEventListener('resize', onResize);
-    vv.addEventListener('scroll', onResize);
-    onResize();
+
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) {
+        clearTimeout(blurTimer);
+        focusOpen = true;
+        setKeyboard(true);
+      }
+    };
+
+    const onFocusOut = () => {
+      // Short delay: focus may move between inputs without the keyboard closing
+      blurTimer = window.setTimeout(() => {
+        const a = document.activeElement;
+        if (!(a instanceof HTMLInputElement) && !(a instanceof HTMLTextAreaElement)) {
+          focusOpen = false;
+          update(); // let viewport offset decide (may still be open)
+        }
+      }, 120);
+    };
+
+    window.addEventListener('resize', update);
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', update);
+    }
+    update();
+
     return () => {
-      vv.removeEventListener('resize', onResize);
-      vv.removeEventListener('scroll', onResize);
+      clearTimeout(blurTimer);
+      window.removeEventListener('resize', update);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      if (vv) {
+        vv.removeEventListener('resize', update);
+        vv.removeEventListener('scroll', update);
+      }
     };
   }, []);
 
