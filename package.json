@@ -1,6 +1,6 @@
 {
   "name": "codedeck",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "private": true,
   "description": "Multi-session agentic coding interface",
   "scripts": {
