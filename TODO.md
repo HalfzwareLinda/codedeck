@@ -31,6 +31,10 @@
 - [ ] **CD-017: Remove local sessions functionality** — Strip out local session support; Codedeck should only handle remote/bridge sessions.
 - [ ] **CD-019: Clean up settings menu** — Audit SettingsModal for unused or obsolete options and remove them.
 
+## Reviews & Fixes
+
+- [ ] **CD-027: Work through consolidated reviews document** — See [REVIEWS_AND_FIXES.md](REVIEWS_AND_FIXES.md) for all findings from 4 independent audits (efficiency, security ×2, UX) — 25 efficiency issues, 32 security findings, 30 UX issues with prioritized fix plans.
+
 ## Future Improvements
 
 - [ ] **CD-026: Most used prompts in UI** — Implement a "most used prompts" feature in the phone UI so users can quickly access and reuse their frequently sent prompts.
