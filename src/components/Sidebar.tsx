@@ -416,7 +416,7 @@ export default function Sidebar() {
       </div>
 
       {/* DMs section — pinned to bottom, 2-tile height */}
-      <div className="dm-section">
+      <div className={`dm-section${panelMode === 'dm' ? ' dm-section--active' : ''}`}>
         <div className="dm-section-header">
           <span className="dm-section-title">
             <span

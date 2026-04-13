@@ -140,6 +140,9 @@ export default function App() {
       document.documentElement.style.setProperty(
         '--app-height', `${vv.height}px`
       );
+      document.documentElement.setAttribute(
+        'data-keyboard-open', String(offset > 50)
+      );
     };
     vv.addEventListener('resize', onResize);
     vv.addEventListener('scroll', onResize);

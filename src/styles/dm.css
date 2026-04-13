@@ -9,6 +9,11 @@
   flex-direction: column;
 }
 
+/* Collapse DM list when keyboard is open and user is in a session (not DM mode) */
+[data-keyboard-open="true"] .dm-section:not(.dm-section--active) .dm-section-list {
+  display: none;
+}
+
 .dm-section-header {
   display: flex;
   align-items: center;
