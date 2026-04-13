@@ -951,6 +951,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               get().requestSessionHistory(s.id);
             }, i * 500); // 500ms stagger to avoid flooding
           }
+
+          // Mark sessions as unread based on authoritative bridge state
+          const currentUnread = get().unreadSessions;
+          const stateBasedUnread: string[] = [];
+          for (const s of incomingSessions) {
+            const needsAttention = s.state === 'idle' || s.state === 'waiting_permission' || s.state === 'waiting_question';
+            if (needsAttention && !currentUnread.has(s.id)) {
+              stateBasedUnread.push(s.id);
+            }
+          }
+          if (stateBasedUnread.length > 0) {
+            set((state) => {
+              const updated = new Set(state.unreadSessions);
+              for (const id of stateBasedUnread) updated.add(id);
+              return { unreadSessions: updated };
+            });
+          }
         }
       },
       // onOutput

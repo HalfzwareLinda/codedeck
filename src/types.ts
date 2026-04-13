@@ -122,6 +122,7 @@ export interface RemoteSessionInfo {
   permissionMode?: AgentMode;
   effortLevel?: EffortLevel;
   committed?: boolean;
+  state?: 'idle' | 'running' | 'waiting_permission' | 'waiting_question';
 }
 
 export interface RemoteOutputEntry {
