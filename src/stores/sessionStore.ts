@@ -112,7 +112,7 @@ const defaultConfig: AppConfig = {
   notifications_enabled: true,
   workspace_base_path: '',
   max_sessions: 20,
-  model: 'claude-opus-4-6',
+  model: 'claude-opus-4-7',
   show_session_metadata: true,
   show_mode_badge: true,
   show_commit_badge: true,

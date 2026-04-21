@@ -48,7 +48,7 @@ impl Default for AppConfig {
             notifications_enabled: true,
             workspace_base_path: String::new(),
             max_sessions: 20,
-            model: "claude-sonnet-4-20250514".to_string(),
+            model: "claude-opus-4-7".to_string(),
             show_session_metadata: true,
             show_mode_badge: true,
             show_commit_badge: true,

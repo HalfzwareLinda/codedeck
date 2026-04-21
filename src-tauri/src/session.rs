@@ -42,6 +42,7 @@ impl TokenUsage {
         self.output_tokens += output;
         // Approximate pricing per 1M tokens
         let (input_rate, output_rate) = match model {
+            m if m.contains("opus-4-7") => (5.0, 25.0),
             m if m.contains("opus") => (15.0, 75.0),
             m if m.contains("sonnet") => (3.0, 15.0),
             m if m.contains("haiku") => (0.80, 4.0),
