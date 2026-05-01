@@ -4,6 +4,22 @@ Multi-session agentic coding interface for Android and desktop, built with Tauri
 
 Control Claude Code sessions on your laptop from your phone over encrypted Nostr relays. Designed for the Google Pixel 9 Pro Fold inner display (landscape), but works on any Android device or desktop.
 
+## Screenshots
+
+### Pixel Fold (landscape split-panel)
+
+<p>
+  <img src="docs/screenshots/fold-session-list.png" alt="Session list with chat view on Pixel Fold" width="400" />
+  <img src="docs/screenshots/fold-plan-approval.png" alt="Plan approval card on Pixel Fold" width="400" />
+</p>
+
+### Phone (portrait)
+
+<p>
+  <img src="docs/screenshots/phone-session-view.png" alt="Session view on phone" width="250" />
+  <img src="docs/screenshots/phone-plan-view.png" alt="Plan rendering on phone" width="250" />
+</p>
+
 ## Download
 
 **[Download the latest CodeDeck for Android (APK)](https://github.com/HalfzwareLinda/codedeck/releases/latest)** — ~20 MB, arm64
