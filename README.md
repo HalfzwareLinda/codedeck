@@ -17,7 +17,7 @@ Control Claude Code sessions on your laptop from your phone over encrypted Nostr
 
 <p>
   <img src="docs/screenshots/phone-session-view.png" alt="Session view on phone" width="250" />
-  <img src="docs/screenshots/phone-plan-view.png" alt="Plan rendering on phone" width="250" />
+  <img src="docs/screenshots/phone-plan-view.png" alt="Session list on phone" width="250" />
 </p>
 
 ## Download
